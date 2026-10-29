@@ -1,5 +1,23 @@
 export type StreamProfileType = 'economy' | 'balanced' | 'low_latency';
 export type ConnectionTransportType = 'wifi' | 'usb_rndis' | 'bluetooth_rfcomm' | 'hybrid';
+export type AndroidColorMode = 'full_color' | 'grayscale';
+export type AndroidTransmissionMode = 'standard' | 'economy';
+
+export interface AndroidStreamSettings {
+  colorMode: AndroidColorMode;
+  transmissionMode: AndroidTransmissionMode;
+}
+
+export interface WindowsAdvancedConfig {
+  profile: StreamProfileType;
+  resolution: string;
+  fps: number;
+  bitrateKbps: number;
+  useHardwareEncoder: boolean;
+  networkAdaptation: boolean;
+  autoReconnect: boolean;
+  resourceLimitCpuPct: number;
+}
 
 export interface StreamProfileConfig {
   id: StreamProfileType;

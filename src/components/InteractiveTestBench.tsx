@@ -22,9 +22,25 @@ import {
   Wifi,
   Search,
   Type,
-  FileText
+  FileText,
+  Settings,
+  Shield,
+  Palette,
+  Power,
+  X,
+  Lock,
+  UserCheck,
+  Check,
+  ArrowRight
 } from 'lucide-react';
-import { StreamProfileType, TouchEventPacket, KeyboardEventPacket, ConnectionTransportType } from '../types/touchscreen';
+import { 
+  StreamProfileType, 
+  TouchEventPacket, 
+  KeyboardEventPacket, 
+  ConnectionTransportType,
+  AndroidColorMode,
+  AndroidTransmissionMode
+} from '../types/touchscreen';
 import { STREAM_PROFILES } from '../data/profilesData';
 
 interface InteractiveTestBenchProps {
@@ -42,10 +58,26 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
   const [deviceOrientation, setDeviceOrientation] = useState<'landscape' | 'portrait'>('landscape');
   const [activeTransport, setActiveTransport] = useState<ConnectionTransportType>('wifi');
   
-  // Floating Mini Keyboard State
+  // Android Client Basic Settings (on-demand modal - Section 3.1)
+  const [isBasicSettingsOpen, setIsBasicSettingsOpen] = useState<boolean>(false);
+  const [colorMode, setColorMode] = useState<AndroidColorMode>('full_color');
+  const [transmissionMode, setTransmissionMode] = useState<AndroidTransmissionMode>('standard');
+
+  // Windows Administration Console State (Section 3.2)
+  const [windowsTab, setWindowsTab] = useState<'quick_connect' | 'stream_config' | 'diagnostics' | 'security'>('quick_connect');
+  const [windowsServerStatus, setWindowsServerStatus] = useState<'running' | 'stopped' | 'waiting'>('running');
+  const [authorizedPin, setAuthorizedPin] = useState<string>('748291');
+  const [requirePriorAuthorization, setRequirePriorAuthorization] = useState<boolean>(true);
+  const [clientConnected, setClientConnected] = useState<boolean>(true);
+  const [authorizedDevices, setAuthorizedDevices] = useState<Array<{ id: string; name: string; ip: string; transport: string; pairedAt: string }>>([
+    { id: 'dev-1', name: 'Tablet Samsung Galaxy Tab S8', ip: '192.168.1.142', transport: 'Wi-Fi 5GHz', pairedAt: 'Hoje, 10:24' },
+    { id: 'dev-2', name: 'Xiaomi Pad 6', ip: '192.168.1.175', transport: 'USB RNDIS', pairedAt: 'Ontem, 16:50' }
+  ]);
+
+  // Floating Mini Keyboard State (Section 13, 14, 16)
   const [isKeyboardOpen, setIsKeyboardOpen] = useState<boolean>(false);
   const [isKeyboardMinimized, setIsKeyboardMinimized] = useState<boolean>(false);
-  const [keyboardPos, setKeyboardPos] = useState<{ x: number; y: number }>({ x: 40, y: 80 });
+  const [keyboardPos, setKeyboardPos] = useState<{ x: number; y: number }>({ x: 30, y: 180 });
   const [isDraggingKeyboard, setIsDraggingKeyboard] = useState<boolean>(false);
   const dragStartRef = useRef<{ startX: number; startY: number; initX: number; initY: number }>({ startX: 0, startY: 0, initX: 0, initY: 0 });
   
@@ -208,7 +240,7 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
     if (smartFocusEnabled) {
       // Regra 6: Posiciona de forma inteligente para não bloquear o campo
       if (defaultPosition === 'bottom') {
-        setKeyboardPos({ x: 30, y: 220 });
+        setKeyboardPos({ x: 30, y: 190 });
       } else {
         setKeyboardPos({ x: 30, y: 40 });
       }
@@ -219,11 +251,11 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
 
   // Touch and pointer interaction calculations
   const processPointerEvent = useCallback((e: React.PointerEvent<HTMLDivElement>, action: 'DOWN' | 'MOVE' | 'UP') => {
-    if (!containerRef.current || !isStreaming) return;
+    if (!containerRef.current || !isStreaming || !clientConnected) return;
 
     // Regra 2: Fechamento ao tocar fora do campo de texto
     // Se o usuário tocou em uma área livre da tela, fecha o teclado imediatamente
-    // e executa a ação de toque no Windows simultaneamente (sem engasgos)
+    // e executa a ação de toque no Windows simultaneamente (sem perda de tempo)
     if (action === 'DOWN') {
       const targetElement = e.target as HTMLElement;
       const isClickInsideTextField = targetElement.closest('.windows-text-field-area') !== null;
@@ -338,7 +370,7 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
         }
       }
     }
-  }, [containerRef, isStreaming, packetCount, pcWidth, pcHeight]);
+  }, [containerRef, isStreaming, clientConnected, packetCount, pcWidth, pcHeight, isKeyboardOpen]);
 
   // Limpa o canvas de teste de desenho
   const clearPaintCanvas = () => {
@@ -360,20 +392,29 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
     return () => clearInterval(interval);
   }, [profileConfig]);
 
+  // Generate random 6-digit PIN
+  const handleRegeneratePin = () => {
+    const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+    setAuthorizedPin(newPin);
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-slate-200">
       {/* Test Bench Control Bar */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <button
-            onClick={() => setIsStreaming(!isStreaming)}
+            onClick={() => {
+              setIsStreaming(!isStreaming);
+              setClientConnected(!isStreaming);
+            }}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-xs sm:text-sm transition-all ${
-              isStreaming
+              isStreaming && clientConnected
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
                 : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
             }`}
           >
-            {isStreaming ? (
+            {isStreaming && clientConnected ? (
               <>
                 <Square className="w-4 h-4 fill-white" />
                 Sessão Ativa (Pausar)
@@ -455,19 +496,8 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
           </div>
         </div>
 
-        {/* Orientation & Floating Keyboard Toggle */}
+        {/* Orientation & Clear Paint */}
         <div className="flex items-center gap-2 text-xs">
-          <button
-            onClick={() => setIsKeyboardOpen(!isKeyboardOpen)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border transition-all ${
-              isKeyboardOpen
-                ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
-                : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
-            }`}
-          >
-            <Keyboard className="w-3.5 h-3.5" />
-            {isKeyboardOpen ? 'Fechar Mini Teclado' : 'Abrir Mini Teclado'}
-          </button>
           <button
             onClick={() => setDeviceOrientation(prev => prev === 'landscape' ? 'portrait' : 'landscape')}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300"
@@ -485,29 +515,34 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
         </div>
       </div>
 
-      {/* Main Sandbox Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Simulated Android Tablet Surface */}
-        <div className="lg:col-span-2 space-y-3">
+      {/* Main Sandbox Area: Left side Tablet (100% clean), Right side Windows Console */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        {/* Left Column: Simulated Android Tablet Surface (Clean Mirror - Section 3.1) */}
+        <div className="xl:col-span-7 space-y-3">
           <div className="flex items-center justify-between text-xs text-slate-400">
             <span className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <b>Tablet Android com Tela Remota</b> — Toque para desenhar, clique nos campos para ativar o mini teclado
+              <span className={`w-2.5 h-2.5 rounded-full ${clientConnected && isStreaming ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+              <b>Tela do Tablet Android (Cliente)</b>
+              <span className="text-emerald-400 text-[11px] font-medium hidden sm:inline">— 100% Limpa, sem HUD ou sobreposições</span>
             </span>
-            <span className="font-mono text-cyan-400">
-              {activeTransport === 'wifi' && '📶 Wi-Fi 5GHz'}
-              {activeTransport === 'usb_rndis' && '🔌 Cabo USB (RNDIS)'}
-              {activeTransport === 'bluetooth_rfcomm' && '🔷 Bluetooth RFCOMM'}
-              {activeTransport === 'hybrid' && '⚡ Híbrido (Wi-Fi + BT)'}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsBasicSettingsOpen(true)}
+                className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Simular Gesto com 3 Dedos para abrir Configurações Básicas"
+              >
+                <Sliders className="w-3 h-3 text-cyan-400" />
+                Gesto: 3 Dedos
+              </button>
+            </div>
           </div>
 
-          {/* Tablet Frame */}
-          <div className="bg-slate-950 p-4 sm:p-6 rounded-3xl border-4 border-slate-800 shadow-2xl relative">
+          {/* Tablet Outer Physical Frame */}
+          <div className="bg-slate-950 p-3 sm:p-5 rounded-3xl border-4 border-slate-800 shadow-2xl relative">
             {/* Tablet Camera notch */}
             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-slate-800/80 border border-slate-700"></div>
 
-            {/* Active Display Surface */}
+            {/* Active Display Surface — ZERO PERMANENT OVERLAYS (Section 3.1) */}
             <div
               ref={containerRef}
               onPointerDown={e => {
@@ -527,33 +562,43 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
                 deviceOrientation === 'landscape' ? 'aspect-16/10' : 'aspect-10/16'
               } bg-black rounded-xl overflow-hidden relative select-none cursor-crosshair touch-none border border-slate-800 flex items-center justify-center`}
             >
-              {/* Discrete In-Stream HUD Overlay */}
-              <div className="absolute top-2 left-2 z-30 pointer-events-none flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] text-white border border-white/10 font-mono shadow-sm">
-                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span>PC-WIN11</span>
-                <span className="text-slate-400">|</span>
-                <span className="text-cyan-300">{latencyMs}ms</span>
-                <span className="text-slate-400">|</span>
-                <span className="text-amber-300">{fps} FPS</span>
-                {focusedField && (
-                  <span className="text-emerald-300 bg-emerald-950/80 px-2 py-0.2 rounded border border-emerald-800 text-[10px]">
-                    Foco: {focusedField}
-                  </span>
-                )}
-              </div>
-
-              {/* Stream Content */}
-              {streamSource === 'real_screen' ? (
+              {/* Stream Content (With Grayscale Filter support when selected by user) */}
+              {!clientConnected || !isStreaming ? (
+                <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-500">
+                    <Power className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white">Desconectado do Computador</h4>
+                    <p className="text-xs text-slate-400 mt-1 max-w-xs">
+                      O espelhamento foi pausado ou desconectado. Inicie uma nova sessão no controle superior.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setIsStreaming(true);
+                      setClientConnected(true);
+                    }}
+                    className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold"
+                  >
+                    Reconectar
+                  </button>
+                </div>
+              ) : streamSource === 'real_screen' ? (
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
+                  style={{ filter: colorMode === 'grayscale' ? 'grayscale(100%)' : 'none' }}
                   className="w-full h-full object-contain pointer-events-none"
                 />
               ) : (
                 /* Simulated Windows 11 Desktop with interactive testing elements */
-                <div className="w-full h-full bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 relative overflow-hidden flex flex-col justify-between p-4">
+                <div 
+                  style={{ filter: colorMode === 'grayscale' ? 'grayscale(100%)' : 'none' }}
+                  className="w-full h-full bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 relative overflow-hidden flex flex-col justify-between p-4"
+                >
                   {/* Canvas layer for touch drawing latency verification */}
                   <canvas
                     ref={paintCanvasRef}
@@ -598,317 +643,230 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
 
                   {/* Windows Search Bar (Interactive for testing Smart Focus - Rule 1 & 3) */}
                   <div className="z-20 max-w-sm windows-text-field-area">
-                    <div 
+                    <label className="text-[10px] text-cyan-300 block mb-1 font-semibold flex items-center gap-1">
+                      <Search className="w-3 h-3" />
+                      Toque para testar detecção de foco no Windows:
+                    </label>
+                    <div
                       onClick={() => handleSelectSimulatedField('Pesquisar no Windows', 'bottom')}
-                      className={`cursor-pointer transition-all p-2 rounded-lg border flex items-center gap-2 ${
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs transition-all cursor-text ${
                         focusedField === 'Pesquisar no Windows'
-                          ? 'bg-blue-900/90 border-cyan-400 shadow-lg shadow-cyan-500/20 ring-1 ring-cyan-400'
-                          : 'bg-slate-900/80 border-slate-700/80 hover:border-slate-500'
+                          ? 'bg-slate-900/90 border-cyan-400 ring-2 ring-cyan-500/30 text-white'
+                          : 'bg-slate-950/70 hover:bg-slate-900/80 border-slate-700 text-slate-300'
                       }`}
                     >
-                      <Search className="w-4 h-4 text-cyan-400 shrink-0" />
-                      <div className="flex-1 truncate text-xs">
-                        <span className="text-slate-400 block text-[10px]">Busca (Enter conclui e fecha teclado):</span>
-                        <span className="text-white font-mono font-medium">{simulatedPcText || 'Digite aqui...'}</span>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
-                        Linha Única
+                      <Search className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="truncate">
+                        {focusedField === 'Pesquisar no Windows' ? simulatedPcText || 'Digite aqui...' : 'Pesquisar aplicativos e arquivos...'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Window Simulation: Notepad Text Editor (Multiline - Rule 3 respects Enter as newline) */}
-                  <div 
-                    onClick={() => handleSelectSimulatedField('Bloco de Notas', 'bottom')}
-                    className={`absolute top-16 right-6 w-80 bg-slate-900/95 backdrop-blur-md rounded-lg border shadow-2xl p-3 text-xs z-20 cursor-pointer transition-all windows-text-field-area ${
-                      focusedField === 'Bloco de Notas'
-                        ? 'border-cyan-400 shadow-cyan-500/10 ring-1 ring-cyan-400'
-                        : 'border-slate-700/80 hover:border-slate-600'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-2">
-                      <span className="font-semibold text-slate-200 flex items-center gap-1.5 text-xs">
-                        <FileText className="w-3.5 h-3.5 text-cyan-400" />
-                        Sem título - Bloco de Notas (Windows)
-                      </span>
-                      <div className="flex gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-yellow-500/80"></span>
-                        <span className="w-2 h-2 rounded-full bg-green-500/80"></span>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-slate-950 p-2.5 rounded border border-slate-800 font-mono text-xs text-emerald-300 min-h-[70px] whitespace-pre-wrap leading-relaxed">
-                      {simulatedPcText}
-                      <span className="inline-block w-1.5 h-3.5 bg-cyan-400 ml-0.5 animate-pulse align-middle"></span>
-                    </div>
-
-                    <div className="mt-2 text-[10px] text-slate-400 flex justify-between items-center">
-                      <span>Campo Multilinhas (Enter quebra linha)</span>
-                      <span className="text-cyan-400 font-medium">UTF-16</span>
-                    </div>
-                  </div>
-
-                  {/* Windows Taskbar */}
-                  <div className="w-full bg-slate-950/85 backdrop-blur-md py-1.5 px-3 rounded-lg border border-slate-800 flex items-center justify-between z-20">
+                  {/* Windows 11 Taskbar */}
+                  <div className="w-full bg-slate-900/80 backdrop-blur-md rounded-lg p-1.5 border border-white/10 flex items-center justify-between text-xs text-white z-20">
                     <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded bg-cyan-600 flex items-center justify-center font-bold text-xs shadow">
+                        田
+                      </div>
                       <button 
-                        onClick={() => {
-                          setIsKeyboardOpen(false);
-                          setFocusedField(null);
-                        }}
-                        className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center text-[10px] font-bold text-white hover:bg-blue-500"
+                        onClick={() => handleSelectSimulatedField('Barra de Endereço', 'top')}
+                        className="windows-text-field-area px-2.5 py-1 rounded bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-[11px] text-slate-300 flex items-center gap-1.5 cursor-text"
                       >
-                        🪟
+                        <FileText className="w-3 h-3 text-cyan-400" />
+                        <span>Bloco de Notas</span>
                       </button>
-                      <span className="text-[11px] font-medium text-slate-300">Iniciar</span>
                     </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
-                      {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+
+                    <div className="text-[11px] font-mono text-slate-400 flex items-center gap-3">
+                      <span>{colorMode === 'grayscale' ? 'PB' : 'RGB'}</span>
+                      <span>14:32</span>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Floating Mini Keyboard Overlay on Top of Mirrored Display */}
-              {isKeyboardOpen && (
+              {/* Floating Mini Virtual Keyboard (Regras 1 a 9) */}
+              {isKeyboardOpen && clientConnected && (
                 <div
                   style={{
-                    position: 'absolute',
                     left: `${keyboardPos.x}px`,
-                    top: `${keyboardPos.y}px`,
-                    zIndex: 50
+                    top: `${keyboardPos.y}px`
                   }}
-                  className="touchscreen-virtual-keyboard touch-auto transition-all duration-150 ease-out"
+                  className={`touchscreen-virtual-keyboard absolute z-50 transition-shadow select-none shadow-2xl rounded-2xl border border-cyan-500/40 bg-slate-950/95 backdrop-blur-xl ${
+                    isKeyboardMinimized ? 'w-48 p-2' : 'w-76 sm:w-88 p-3'
+                  }`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                  }}
                 >
-                  {isKeyboardMinimized ? (
-                    /* Floating Bubble when Minimized */
-                    <button
-                      onClick={() => setIsKeyboardMinimized(false)}
-                      className="w-12 h-12 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white shadow-2xl flex items-center justify-center border-2 border-cyan-300 cursor-pointer animate-bounce-subtle"
-                      title="Expandir Mini Teclado"
-                    >
-                      <Keyboard className="w-6 h-6" />
-                    </button>
-                  ) : (
-                    /* Expanded Virtual Mini Keyboard Panel */
-                    <div className="w-[360px] sm:w-[460px] bg-slate-900/95 backdrop-blur-xl border border-slate-700 rounded-2xl shadow-2xl p-2.5 text-xs select-none">
-                      {/* Keyboard Drag Header & Controls */}
-                      <div 
-                        onMouseDown={e => {
-                          setIsDraggingKeyboard(true);
-                          dragStartRef.current = { startX: e.clientX, startY: e.clientY, initX: keyboardPos.x, initY: keyboardPos.y };
-                        }}
-                        className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-700/80 cursor-grab active:cursor-grabbing text-slate-400 text-[11px]"
+                  {/* Keyboard Header with drag handle and close button (Rule 4) */}
+                  <div 
+                    className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 cursor-grab active:cursor-grabbing"
+                    onPointerDown={(e) => {
+                      e.stopPropagation();
+                      setIsDraggingKeyboard(true);
+                      dragStartRef.current = {
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        initX: keyboardPos.x,
+                        initY: keyboardPos.y
+                      };
+                      const onMove = (moveEvt: PointerEvent) => {
+                        const deltaX = moveEvt.clientX - dragStartRef.current.startX;
+                        const deltaY = moveEvt.clientY - dragStartRef.current.startY;
+                        setKeyboardPos({
+                          x: Math.max(10, Math.min(320, dragStartRef.current.initX + deltaX)),
+                          y: Math.max(10, Math.min(220, dragStartRef.current.initY + deltaY))
+                        });
+                      };
+                      const onUp = () => {
+                        window.removeEventListener('pointermove', onMove);
+                        window.removeEventListener('pointerup', onUp);
+                        setIsDraggingKeyboard(false);
+                      };
+                      window.addEventListener('pointermove', onMove);
+                      window.addEventListener('pointerup', onUp);
+                    }}
+                  >
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-cyan-400">
+                      <Keyboard className="w-3.5 h-3.5" />
+                      <span>Mini Teclado</span>
+                      {pendingDeadKey && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1 rounded border border-amber-500/40 animate-pulse">
+                          Acento '{pendingDeadKey}'
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setIsKeyboardMinimized(!isKeyboardMinimized)}
+                        className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
+                        title={isKeyboardMinimized ? 'Expandir' : 'Minimizar'}
                       >
-                        <div className="flex items-center gap-1.5 font-medium text-slate-200">
-                          <Keyboard className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Mini Teclado Flutuante</span>
-                          {pendingDeadKey && (
-                            <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 text-[10px]">
-                              Acento: '{pendingDeadKey}'
-                            </span>
-                          )}
-                        </div>
+                        {isKeyboardMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsKeyboardOpen(false);
+                          setFocusedField(null);
+                        }}
+                        className="p-1 rounded hover:bg-rose-900/50 text-slate-400 hover:text-rose-300"
+                        title="Fechar (Voltar)"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
 
-                        <div className="flex items-center gap-1">
+                  {!isKeyboardMinimized && (
+                    <div className="space-y-1.5 text-xs">
+                      {/* Portuguese Accents Row */}
+                      <div className="flex gap-1 justify-center">
+                        {['´', '`', '~', '^', 'ç'].map(acc => (
                           <button
-                            onClick={() => setIsKeyboardMinimized(true)}
-                            className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white"
-                            title="Minimizar para bolha flutuante"
+                            key={acc}
+                            onClick={() => handleVirtualKeyPress(acc, acc !== 'ç')}
+                            className="px-2.5 py-1 rounded bg-slate-800 hover:bg-cyan-600/40 active:bg-cyan-500 border border-slate-700 text-amber-300 font-bold transition-colors cursor-pointer"
                           >
-                            <Minimize2 className="w-3 h-3" />
-                          </button>
-                          <button
-                            onClick={() => setIsKeyboardOpen(false)}
-                            className="p-1 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400"
-                            title="Fechar teclado"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Keyboard Layout: Row 1 Numbers */}
-                      <div className="grid grid-cols-12 gap-1 mb-1">
-                        {['1','2','3','4','5','6','7','8','9','0','-','='].map(k => (
-                          <button
-                            key={k}
-                            onClick={() => handleVirtualKeyPress(k)}
-                            className="h-7 bg-slate-800 hover:bg-slate-700 active:bg-cyan-600 rounded text-slate-200 font-mono font-medium text-[11px] border border-slate-700/80"
-                          >
-                            {k}
+                            {acc}
                           </button>
                         ))}
                       </div>
 
-                      {/* Row 2 QWERTY + Accents */}
-                      <div className="grid grid-cols-12 gap-1 mb-1">
-                        {['q','w','e','r','t','y','u','i','o','p'].map(k => {
-                          const display = isShiftActive ? k.toUpperCase() : k;
-                          return (
-                            <button
-                              key={k}
-                              onClick={() => handleVirtualKeyPress(display)}
-                              className="h-7 bg-slate-800 hover:bg-slate-700 active:bg-cyan-600 rounded text-slate-200 font-mono font-medium text-[11px] border border-slate-700/80"
-                            >
-                              {display}
-                            </button>
-                          );
-                        })}
-                        <button
-                          onClick={() => handleVirtualKeyPress('´', true)}
-                          className={`h-7 rounded font-mono font-bold text-[11px] border ${
-                            pendingDeadKey === '´' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800 text-amber-400 border-slate-700'
-                          }`}
-                          title="Acento Agudo (´ + a = á)"
-                        >
-                          ´
-                        </button>
-                        <button
-                          onClick={() => handleVirtualKeyPress('`', true)}
-                          className={`h-7 rounded font-mono font-bold text-[11px] border ${
-                            pendingDeadKey === '`' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800 text-amber-400 border-slate-700'
-                          }`}
-                          title="Crase (` + a = à)"
-                        >
-                          `
-                        </button>
+                      {/* Row 1: Numbers */}
+                      <div className="grid grid-cols-10 gap-1">
+                        {['1','2','3','4','5','6','7','8','9','0'].map(num => (
+                          <button
+                            key={num}
+                            onClick={() => handleVirtualKeyPress(num)}
+                            className="py-1 rounded bg-slate-900 hover:bg-slate-800 active:bg-cyan-600 text-white font-mono text-center border border-slate-800 text-[11px]"
+                          >
+                            {num}
+                          </button>
+                        ))}
                       </div>
 
-                      {/* Row 3 ASDFGHJKL + Ç + Til + Enter */}
-                      <div className="grid grid-cols-12 gap-1 mb-1">
-                        {['a','s','d','f','g','h','j','k','l','ç'].map(k => {
-                          const display = isShiftActive ? k.toUpperCase() : k;
-                          return (
-                            <button
-                              key={k}
-                              onClick={() => handleVirtualKeyPress(display)}
-                              className="h-7 bg-slate-800 hover:bg-slate-700 active:bg-cyan-600 rounded text-slate-200 font-mono font-medium text-[11px] border border-slate-700/80"
-                            >
-                              {display}
-                            </button>
-                          );
-                        })}
-                        <button
-                          onClick={() => handleVirtualKeyPress('~', true)}
-                          className={`h-7 rounded font-mono font-bold text-[11px] border ${
-                            pendingDeadKey === '~' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800 text-amber-400 border-slate-700'
-                          }`}
-                          title="Til (~ + a = ã, ~ + o = õ)"
-                        >
-                          ~
-                        </button>
-                        <button
-                          onClick={() => handleVirtualKeyPress('^', true)}
-                          className={`h-7 rounded font-mono font-bold text-[11px] border ${
-                            pendingDeadKey === '^' ? 'bg-amber-600 text-white border-amber-400' : 'bg-slate-800 text-amber-400 border-slate-700'
-                          }`}
-                          title="Circunflexo (^ + a = â, ^ + e = ê)"
-                        >
-                          ^
-                        </button>
+                      {/* Row 2: QWERTY */}
+                      <div className="grid grid-cols-10 gap-1">
+                        {['q','w','e','r','t','y','u','i','o','p'].map(char => (
+                          <button
+                            key={char}
+                            onClick={() => handleVirtualKeyPress(char)}
+                            className="py-1 rounded bg-slate-900 hover:bg-slate-800 active:bg-cyan-600 text-slate-200 font-medium text-center border border-slate-800 text-[11px]"
+                          >
+                            {isShiftActive ? char.toUpperCase() : char}
+                          </button>
+                        ))}
                       </div>
 
-                      {/* Row 4 Shift + ZXCVBNM + Backspace */}
-                      <div className="grid grid-cols-12 gap-1 mb-1">
+                      {/* Row 3: ASDF */}
+                      <div className="grid grid-cols-9 gap-1 px-2">
+                        {['a','s','d','f','g','h','j','k','l'].map(char => (
+                          <button
+                            key={char}
+                            onClick={() => handleVirtualKeyPress(char)}
+                            className="py-1 rounded bg-slate-900 hover:bg-slate-800 active:bg-cyan-600 text-slate-200 font-medium text-center border border-slate-800 text-[11px]"
+                          >
+                            {isShiftActive ? char.toUpperCase() : char}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Row 4: ZXCV + Modifiers */}
+                      <div className="flex gap-1">
                         <button
                           onClick={() => setIsShiftActive(!isShiftActive)}
-                          className={`col-span-2 h-7 rounded font-medium text-[10px] border transition-colors ${
+                          className={`px-2 py-1 rounded font-bold text-[10px] border ${
                             isShiftActive ? 'bg-cyan-600 text-white border-cyan-400' : 'bg-slate-800 text-slate-300 border-slate-700'
                           }`}
                         >
-                          ⇧ Shift
+                          Shift
                         </button>
-                        {['z','x','c','v','b','n','m',',','.'].map(k => {
-                          const display = isShiftActive ? k.toUpperCase() : k;
-                          return (
+                        <div className="grid grid-cols-7 gap-1 flex-1">
+                          {['z','x','c','v','b','n','m'].map(char => (
                             <button
-                              key={k}
-                              onClick={() => handleVirtualKeyPress(display)}
-                              className="h-7 bg-slate-800 hover:bg-slate-700 active:bg-cyan-600 rounded text-slate-200 font-mono font-medium text-[11px] border border-slate-700/80"
+                              key={char}
+                              onClick={() => handleVirtualKeyPress(char)}
+                              className="py-1 rounded bg-slate-900 hover:bg-slate-800 active:bg-cyan-600 text-slate-200 font-medium text-center border border-slate-800 text-[11px]"
                             >
-                              {display}
+                              {isShiftActive ? char.toUpperCase() : char}
                             </button>
-                          );
-                        })}
+                          ))}
+                        </div>
                         <button
                           onClick={() => handleVirtualKeyPress('Backspace', true)}
-                          className="col-span-1 h-7 bg-slate-800 hover:bg-red-900/50 active:bg-red-600 rounded text-red-300 font-medium text-[10px] border border-slate-700 flex items-center justify-center"
-                          title="Backspace"
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 active:bg-rose-600 text-slate-300 text-[10px] border border-slate-700"
                         >
-                          ⌫
+                          ←
                         </button>
                       </div>
 
-                      {/* Row 5 Modifiers, Space, Enter, Shortcuts */}
-                      <div className="grid grid-cols-12 gap-1">
+                      {/* Row 5: Action Keys */}
+                      <div className="flex gap-1 pt-1">
                         <button
-                          onClick={() => setIsCtrlActive(!isCtrlActive)}
-                          className={`h-7 rounded text-[10px] font-medium border ${
-                            isCtrlActive ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
-                          }`}
+                          onClick={() => handleVirtualKeyPress('Tab', true)}
+                          className="px-2 py-1 rounded bg-slate-800 text-slate-400 text-[10px] border border-slate-700"
                         >
-                          Ctrl
-                        </button>
-                        <button
-                          onClick={() => setIsAltActive(!isAltActive)}
-                          className={`h-7 rounded text-[10px] font-medium border ${
-                            isAltActive ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 border-slate-700'
-                          }`}
-                        >
-                          Alt
+                          Tab
                         </button>
                         <button
                           onClick={() => handleVirtualKeyPress(' ')}
-                          className="col-span-5 h-7 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 font-medium text-[11px] border border-slate-700"
+                          className="flex-1 py-1 rounded bg-slate-900 hover:bg-slate-800 active:bg-cyan-600 text-slate-400 text-[10px] border border-slate-800 text-center"
                         >
                           Espaço
                         </button>
                         <button
                           onClick={() => handleVirtualKeyPress('Enter', true)}
-                          className="col-span-2 h-7 bg-emerald-600 hover:bg-emerald-500 rounded text-white font-bold text-[10px] border border-emerald-500 flex items-center justify-center gap-1"
+                          className="px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-[10px] flex items-center gap-1 shadow"
                         >
-                          Enter ⏎
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSimulatedPcText(prev => prev + ' [Copiado]');
-                          }}
-                          className="col-span-1 h-7 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-[9px] border border-slate-700"
-                          title="Atalho Ctrl+C"
-                        >
-                          ^C
-                        </button>
-                        <button
-                          onClick={() => {
-                            setSimulatedPcText(prev => prev + ' [Colado]');
-                          }}
-                          className="col-span-2 h-7 bg-slate-800 hover:bg-slate-700 rounded text-slate-300 text-[9px] border border-slate-700"
-                          title="Atalho Ctrl+V"
-                        >
-                          ^V
+                          <span>Enter</span>
+                          <ArrowRight className="w-2.5 h-2.5" />
                         </button>
                       </div>
                     </div>
                   )}
                 </div>
               )}
-
-              {/* Floating Action Button (FAB) on Bottom-Right of Tablet */}
-              <button
-                onClick={() => {
-                  setIsKeyboardOpen(!isKeyboardOpen);
-                  setIsKeyboardMinimized(false);
-                }}
-                className={`absolute bottom-3 right-3 z-40 p-2.5 rounded-full shadow-xl border flex items-center justify-center transition-all ${
-                  isKeyboardOpen
-                    ? 'bg-cyan-600 text-white border-cyan-400'
-                    : 'bg-slate-900/90 text-cyan-400 border-slate-700 hover:bg-slate-800'
-                }`}
-                title="Abrir/Fechar Mini Teclado Flutuante"
-              >
-                <Keyboard className="w-5 h-5" />
-              </button>
 
               {/* Touch Visualizer Circles */}
               {touchTrail.map((touch) => (
@@ -921,146 +879,486 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
                   className="absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full border-2 border-cyan-400 bg-cyan-400/30 pointer-events-none z-40 animate-ping-once"
                 />
               ))}
+
+              {/* On-Demand Android Basic Settings Modal (Section 3.1) */}
+              {isBasicSettingsOpen && (
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                      <div className="flex items-center gap-2 text-white font-bold text-sm">
+                        <Sliders className="w-4 h-4 text-cyan-400" />
+                        <span>Configurações Básicas (Android)</span>
+                      </div>
+                      <button
+                        onClick={() => setIsBasicSettingsOpen(false)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Mode de Cor */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-300 block">
+                        Modo de Cor da Imagem:
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <button
+                          onClick={() => setColorMode('full_color')}
+                          className={`p-2.5 rounded-lg border text-left flex flex-col gap-1 transition-all ${
+                            colorMode === 'full_color'
+                              ? 'bg-cyan-950/60 border-cyan-500 text-white'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <span className="font-bold flex items-center gap-1.5">
+                            <Palette className="w-3.5 h-3.5 text-cyan-400" />
+                            Cores Completas
+                          </span>
+                          <span className="text-[10px] text-slate-400">Padrão RGB 32-bits</span>
+                        </button>
+
+                        <button
+                          onClick={() => setColorMode('grayscale')}
+                          className={`p-2.5 rounded-lg border text-left flex flex-col gap-1 transition-all ${
+                            colorMode === 'grayscale'
+                              ? 'bg-cyan-950/60 border-cyan-500 text-white'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <span className="font-bold flex items-center gap-1.5">
+                            <span className="w-3.5 h-3.5 rounded-full bg-slate-400 inline-block"></span>
+                            Escala de Cinza
+                          </span>
+                          <span className="text-[10px] text-slate-400">Economia máxima</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Modo de Transmissão */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-slate-300 block">
+                        Modo de Transmissão:
+                      </label>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <button
+                          onClick={() => setTransmissionMode('standard')}
+                          className={`p-2.5 rounded-lg border text-left flex flex-col gap-1 transition-all ${
+                            transmissionMode === 'standard'
+                              ? 'bg-cyan-950/60 border-cyan-500 text-white'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <span className="font-bold">Padrão</span>
+                          <span className="text-[10px] text-slate-400">Fidelidade e nitidez</span>
+                        </button>
+
+                        <button
+                          onClick={() => setTransmissionMode('economy')}
+                          className={`p-2.5 rounded-lg border text-left flex flex-col gap-1 transition-all ${
+                            transmissionMode === 'economy'
+                              ? 'bg-cyan-950/60 border-cyan-500 text-white'
+                              : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                          }`}
+                        >
+                          <span className="font-bold">Econômico</span>
+                          <span className="text-[10px] text-slate-400">Poupa bateria e rede</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Teclado Virtual Manual Toggle */}
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                      <span className="text-xs text-slate-300">Exibir Mini Teclado Flutuante:</span>
+                      <button
+                        onClick={() => {
+                          setIsKeyboardOpen(!isKeyboardOpen);
+                          setIsKeyboardMinimized(false);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold border ${
+                          isKeyboardOpen
+                            ? 'bg-cyan-600 text-white border-cyan-400'
+                            : 'bg-slate-800 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        {isKeyboardOpen ? 'Ativo' : 'Oculto'}
+                      </button>
+                    </div>
+
+                    {/* Disconnect Action */}
+                    <div className="pt-2 flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setClientConnected(false);
+                          setIsStreaming(false);
+                          setIsBasicSettingsOpen(false);
+                        }}
+                        className="flex-1 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <Power className="w-3.5 h-3.5" />
+                        Desconectar Sessão
+                      </button>
+                      <button
+                        onClick={() => setIsBasicSettingsOpen(false)}
+                        className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold"
+                      >
+                        Fechar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Instruction Footer on Tablet */}
             <div className="mt-3 flex flex-wrap items-center justify-between text-[11px] text-slate-400 gap-2">
-              <span>Orientação paisagem recomendada. O mini teclado pode ser arrastado para qualquer posição.</span>
+              <span>Orientação paisagem recomendada. Display 100% limpo sem sobreposições.</span>
               <span className="text-cyan-400 font-medium flex items-center gap-1">
                 <CheckCircle className="w-3.5 h-3.5" />
-                Preserva foco do Windows com SendInput
+                Toque de 3 dedos abre controles básicos
               </span>
             </div>
           </div>
         </div>
 
-        {/* Right Col: Live Packet Inspector & Diagnostic Meters */}
-        <div className="space-y-4">
-          {/* Performance Gauges */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Activity className="w-4 h-4 text-cyan-400" />
-              Métricas do Transporte: {activeTransport.toUpperCase()}
-            </h3>
-
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Latência Medida</span>
-                <span className="text-lg font-mono font-bold text-emerald-400">
-                  {latencyMs} <span className="text-xs font-normal text-slate-400">ms</span>
-                </span>
-                <span className="text-[10px] text-slate-500 block">
-                  {activeTransport === 'bluetooth_rfcomm' ? 'RFCOMM SPP' : 'Wi-Fi/USB Direto'}
-                </span>
+        {/* Right Column: Windows Administration & Server Console (Section 3.2) */}
+        <div className="xl:col-span-5 space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl shadow-md overflow-hidden">
+            {/* Windows Console Header */}
+            <div className="bg-slate-950 p-4 border-b border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-cyan-600/20 border border-cyan-500/40 flex items-center justify-center text-cyan-400">
+                  <Monitor className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white leading-tight">TouchScreen Link — PC Windows</h3>
+                  <span className="text-[10px] text-slate-400">Central de Administração do Servidor</span>
+                </div>
               </div>
-
-              <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Taxa de Quadros</span>
-                <span className="text-lg font-mono font-bold text-amber-400">
-                  {fps} <span className="text-xs font-normal text-slate-400">FPS</span>
-                </span>
-                <span className="text-[10px] text-slate-500 block">Alvo: {profileConfig.targetFps} FPS</span>
-              </div>
-
-              <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Bitrate do Vídeo</span>
-                <span className="text-lg font-mono font-bold text-blue-400">
-                  {(profileConfig.bitrateKbps / 1000).toFixed(1)} <span className="text-xs font-normal text-slate-400">Mbps</span>
-                </span>
-                <span className="text-[10px] text-slate-500 block">
-                  {activeTransport === 'bluetooth_rfcomm' ? 'Vídeo prioriza Wi-Fi' : 'H.264 Hardware'}
-                </span>
-              </div>
-
-              <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                <span className="text-slate-400 block mb-0.5">Eventos Registrados</span>
-                <span className="text-lg font-mono font-bold text-purple-400">
-                  {packetCount}
-                </span>
-                <span className="text-[10px] text-slate-500 block">Toque & Teclado</span>
-              </div>
+              <span className="flex items-center gap-1.5 text-xs bg-emerald-950/80 text-emerald-400 border border-emerald-800/80 px-2.5 py-0.5 rounded-full font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                Servidor Ativo
+              </span>
             </div>
 
-            {/* Smart Focus Detection Toggle */}
-            <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-xs">
-              <div>
-                <span className="font-semibold text-white block">Ativação Inteligente (UI Automation)</span>
-                <span className="text-[11px] text-slate-400">Abre o teclado ao focar campos no Windows</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={smartFocusEnabled}
-                onChange={e => setSmartFocusEnabled(e.target.checked)}
-                className="w-4 h-4 rounded text-cyan-600 focus:ring-cyan-500 border-slate-700 bg-slate-950 cursor-pointer"
-              />
+            {/* Windows 4 Sections Navigation Tabs */}
+            <div className="flex border-b border-slate-800 bg-slate-900/60 text-xs font-medium overflow-x-auto">
+              <button
+                onClick={() => setWindowsTab('quick_connect')}
+                className={`flex-1 py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
+                  windowsTab === 'quick_connect'
+                    ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Power className="w-3.5 h-3.5" />
+                Início & Conexão
+              </button>
+              <button
+                onClick={() => setWindowsTab('stream_config')}
+                className={`flex-1 py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
+                  windowsTab === 'stream_config'
+                    ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                Transmissão
+              </button>
+              <button
+                onClick={() => setWindowsTab('diagnostics')}
+                className={`flex-1 py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
+                  windowsTab === 'diagnostics'
+                    ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                Diagnóstico
+              </button>
+              <button
+                onClick={() => setWindowsTab('security')}
+                className={`flex-1 py-2.5 px-3 border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
+                  windowsTab === 'security'
+                    ? 'border-cyan-500 text-cyan-400 bg-cyan-500/5'
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                Segurança
+              </button>
             </div>
-          </div>
 
-          {/* Coordinate & Keyboard Packet Inspector */}
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-md space-y-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Type className="w-4 h-4 text-cyan-400" />
-              Inspetor de Pacotes de Teclado (16 bytes) & Toque (24 bytes)
-            </h3>
-
-            {lastKeyboardPacket ? (
-              <div className="space-y-2 text-xs">
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-cyan-500/30 font-mono space-y-1">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Ação de Teclado:</span>
-                    <span className="text-cyan-400 font-bold">{lastKeyboardPacket.action}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>Caractere Unicode / Código:</span>
-                    <span className="text-emerald-400 font-bold">
-                      '{String.fromCharCode(lastKeyboardPacket.unicodeChar || 32)}' (U+{lastKeyboardPacket.unicodeChar.toString(16).toUpperCase().padStart(4, '0')})
+            {/* Tab 1: Início & Conexão Rápida */}
+            {windowsTab === 'quick_connect' && (
+              <div className="p-4 space-y-4 text-xs">
+                {/* Server Network Details */}
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between text-slate-300">
+                    <span className="font-semibold text-white">Status do Servidor:</span>
+                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Em execução (Porta 59100)
                     </span>
                   </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>Modificadores:</span>
-                    <span className="text-slate-300">
-                      Shift: {lastKeyboardPacket.modifiers.shift ? 'SIM' : 'NÃO'} | Ctrl: {lastKeyboardPacket.modifiers.ctrl ? 'SIM' : 'NÃO'}
-                    </span>
+                  <div className="grid grid-cols-2 gap-2 text-slate-400 pt-1 border-t border-slate-800">
+                    <div>
+                      <span className="block text-[10px] text-slate-500">Endereço IP Local:</span>
+                      <span className="font-mono text-cyan-400 font-semibold">192.168.1.105</span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-slate-500">Descoberta UDP:</span>
+                      <span className="font-mono text-slate-300">Porta 59101 (Ativo)</span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-400">
-                  <span className="block mb-1">Pacote Binário (16 bytes Little-Endian):</span>
-                  <div className="bg-slate-950 p-2 rounded border border-slate-800 font-mono text-[11px] text-cyan-300">
-                    4B 02 00 00 {(lastKeyboardPacket.unicodeChar & 0xFF).toString(16).padStart(2, '0')} {((lastKeyboardPacket.unicodeChar >> 8) & 0xFF).toString(16).padStart(2, '0')} 00 00 ...
-                  </div>
+                {/* Active Connected Clients List */}
+                <div className="space-y-2">
+                  <span className="font-semibold text-white block">Conexão Ativa no Momento:</span>
+                  {clientConnected ? (
+                    <div className="bg-slate-950 p-3 rounded-lg border border-cyan-500/30 flex items-center justify-between">
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-white flex items-center gap-1.5">
+                          <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Galaxy Tab S8 (Android 14)</span>
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-mono">
+                          192.168.1.142 • {activeTransport === 'wifi' ? 'Wi-Fi 5GHz' : activeTransport.toUpperCase()}
+                        </div>
+                        <div className="text-[10px] text-emerald-400">
+                          Resolução: {pcWidth}×{pcHeight} @ {fps} FPS
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setClientConnected(false);
+                          setIsStreaming(false);
+                        }}
+                        className="px-2.5 py-1.5 bg-rose-950 hover:bg-rose-900 border border-rose-800 text-rose-300 rounded-md font-semibold text-[11px] transition-colors"
+                      >
+                        Desconectar
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-center text-slate-500">
+                      Nenhum cliente conectado no momento. Abra o app no Android para conectar.
+                    </div>
+                  )}
                 </div>
-              </div>
-            ) : lastPacket ? (
-              <div className="space-y-2 text-xs">
-                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 font-mono space-y-1">
-                  <div className="flex justify-between text-slate-400">
-                    <span>Toque Ação / Ponteiro:</span>
-                    <span className="text-emerald-400 font-bold">{lastPacket.action} (#{lastPacket.pointerId})</span>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>Coordenadas Normalizadas:</span>
-                    <span className="text-cyan-400">X: {lastPacket.normX.toFixed(4)} | Y: {lastPacket.normY.toFixed(4)}</span>
-                  </div>
-                  <div className="flex justify-between text-slate-400">
-                    <span>Pixel Alvo no PC:</span>
-                    <span className="text-amber-400 font-bold">{lastPacket.targetPixelX} × {lastPacket.targetPixelY} px</span>
-                  </div>
+
+                {/* System Settings & Startup */}
+                <div className="pt-2 border-t border-slate-800 space-y-2 text-slate-300">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" defaultChecked className="rounded text-cyan-600 bg-slate-950 border-slate-800" />
+                    <span>Iniciar servidor automaticamente com o Windows</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" defaultChecked className="rounded text-cyan-600 bg-slate-950 border-slate-800" />
+                    <span>Minimizar para a bandeja do sistema ao fechar</span>
+                  </label>
                 </div>
-              </div>
-            ) : (
-              <div className="bg-slate-950 p-4 rounded-lg border border-slate-800 text-center text-xs text-slate-500">
-                Toque no tablet ou digite no mini teclado para inspecionar os pacotes binários.
               </div>
             )}
 
-            <div className="text-[11px] bg-slate-950/80 p-2 rounded border border-slate-800 text-slate-400">
-              <b>Segurança Estrita:</b> Pacotes de teclado transmitem códigos virtuais sanitizados ou pontos de código UTF-16 validados. O servidor Windows nunca executa comandos de shell ou scripts arbitrários.
-            </div>
+            {/* Tab 2: Configurações Avançadas de Transmissão (3 perfis reais) */}
+            {windowsTab === 'stream_config' && (
+              <div className="p-4 space-y-4 text-xs">
+                <div>
+                  <span className="font-semibold text-white block mb-1.5">Perfis Pré-configurados de Transmissão:</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => onChangeProfile('economy')}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        activeProfile === 'economy'
+                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="font-bold text-xs block text-cyan-300">1. Economia</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">720p @ 30 FPS</span>
+                      <span className="text-[10px] text-emerald-400 font-mono block mt-1">2.5 Mbps • CPU mín.</span>
+                    </button>
+
+                    <button
+                      onClick={() => onChangeProfile('balanced')}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        activeProfile === 'balanced'
+                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="font-bold text-xs block text-cyan-300">2. Equilibrado</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">1080p @ 45-60 FPS</span>
+                      <span className="text-[10px] text-blue-400 font-mono block mt-1">6.5 Mbps • Ideal</span>
+                    </button>
+
+                    <button
+                      onClick={() => onChangeProfile('low_latency')}
+                      className={`p-2.5 rounded-lg border text-left transition-all ${
+                        activeProfile === 'low_latency'
+                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm'
+                          : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="font-bold text-xs block text-cyan-300">3. Baixa Latência</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">900p @ 60 FPS</span>
+                      <span className="text-[10px] text-purple-400 font-mono block mt-1">8.0 Mbps • 1-frame</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Manual Tuning Parameters */}
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
+                  <span className="font-semibold text-white block">Parâmetros Manuais de Hardware:</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Acelerador H.264:</label>
+                      <select className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 text-xs">
+                        <option>D3D11 Video Processing (GPU)</option>
+                        <option>NVIDIA NVENC Hardware</option>
+                        <option>Intel QuickSync Video</option>
+                        <option>AMD AMF Advanced</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-slate-400 block mb-1">Estratégia de Buffer:</label>
+                      <select className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 text-xs">
+                        <option>Zero-Latency (1 frame)</option>
+                        <option>Smooth Jitter (2 frames)</option>
+                        <option>Adaptive Dynamico</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 3: Diagnóstico Técnico & Métricas */}
+            {windowsTab === 'diagnostics' && (
+              <div className="p-4 space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block mb-0.5">Latência Estimada</span>
+                    <span className="text-base font-mono font-bold text-emerald-400">
+                      {latencyMs} <span className="text-xs font-normal text-slate-400">ms</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Ponta a ponta</span>
+                  </div>
+
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block mb-0.5">Captura DXGI & FPS</span>
+                    <span className="text-base font-mono font-bold text-amber-400">
+                      {fps} <span className="text-xs font-normal text-slate-400">FPS</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Alvo: {profileConfig.targetFps} FPS</span>
+                  </div>
+
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block mb-0.5">Uso de CPU no PC</span>
+                    <span className="text-base font-mono font-bold text-cyan-400">
+                      2.4% <span className="text-xs font-normal text-slate-400">CPU</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">Zero cópia na memória</span>
+                  </div>
+
+                  <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
+                    <span className="text-slate-400 block mb-0.5">Taxa de Dados</span>
+                    <span className="text-base font-mono font-bold text-purple-400">
+                      {(profileConfig.bitrateKbps / 1000).toFixed(1)} <span className="text-xs font-normal text-slate-400">Mbps</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 block">H.264 MFT</span>
+                  </div>
+                </div>
+
+                {/* Live Binary Packet Inspector */}
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                  <span className="font-semibold text-white block">Último Pacote de Toque Recebido (24 bytes):</span>
+                  {lastPacket ? (
+                    <div className="font-mono text-[11px] text-cyan-300 bg-slate-900 p-2 rounded border border-slate-800 space-y-1">
+                      <div className="flex justify-between text-slate-400">
+                        <span>Ação / ID:</span>
+                        <span className="text-emerald-400 font-bold">{lastPacket.action} (#{lastPacket.pointerId})</span>
+                      </div>
+                      <div className="flex justify-between text-slate-400">
+                        <span>Pixel Alvo:</span>
+                        <span className="text-amber-400 font-bold">{lastPacket.targetPixelX} × {lastPacket.targetPixelY} px</span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 pt-1 border-t border-slate-800 truncate">
+                        Hex: {binaryBytePreview}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-slate-500 text-center py-2 text-[11px]">
+                      Aguardando eventos de toque na tela do tablet...
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 4: Segurança & Pareamento */}
+            {windowsTab === 'security' && (
+              <div className="p-4 space-y-4 text-xs">
+                {/* Authentication PIN Panel */}
+                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-white">Chave PIN de Pareamento:</span>
+                    <button
+                      onClick={handleRegeneratePin}
+                      className="text-[11px] text-cyan-400 hover:underline flex items-center gap-1"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Novo PIN
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-center p-3 bg-slate-900 rounded-lg border border-cyan-500/30">
+                    <span className="text-2xl font-mono font-extrabold tracking-widest text-cyan-400">
+                      {authorizedPin}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    Digite este PIN no aplicativo Android para autorizar o acesso à tela e aos controles.
+                  </p>
+                </div>
+
+                {/* Prior Authorization Toggle */}
+                <div className="pt-2 border-t border-slate-800 space-y-2">
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-slate-300">Exigir autorização manual no Windows para novos dispositivos</span>
+                    <input
+                      type="checkbox"
+                      checked={requirePriorAuthorization}
+                      onChange={e => setRequirePriorAuthorization(e.target.checked)}
+                      className="rounded text-cyan-600 bg-slate-950 border-slate-800 w-4 h-4 cursor-pointer"
+                    />
+                  </label>
+                </div>
+
+                {/* Authorized Devices List */}
+                <div className="space-y-2 pt-2 border-t border-slate-800">
+                  <span className="font-semibold text-white block">Dispositivos Autorizados ({authorizedDevices.length}):</span>
+                  {authorizedDevices.map(dev => (
+                    <div key={dev.id} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 flex items-center justify-between">
+                      <div>
+                        <span className="font-bold text-slate-200 block">{dev.name}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">{dev.ip} • Pareado: {dev.pairedAt}</span>
+                      </div>
+                      <button
+                        onClick={() => setAuthorizedDevices(prev => prev.filter(d => d.id !== dev.id))}
+                        className="text-[10px] text-rose-400 hover:text-rose-300 hover:underline px-2 py-1"
+                      >
+                        Revogar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
     </div>
   );
 };
-

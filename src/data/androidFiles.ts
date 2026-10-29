@@ -1031,6 +1031,12 @@ class TouchStreamClient(
         }
     }
 
+    fun sendControlJson(json: JSONObject) {
+        if (isConnected.get()) {
+            webSocket?.send(json.toString())
+        }
+    }
+
     private fun scheduleReconnect(authPin: String?) {
         scope.launch {
             delay(2000)
@@ -1633,19 +1639,25 @@ fun StreamScreen(
     bluetoothManager: BluetoothTransportManager,
     onDisconnect: () -> Unit
 ) {
-    var measuredLatencyMs by remember { mutableStateOf(14L) }
-    var connectionStatusText by remember { mutableStateOf("Conectando...") }
     var isConnected by remember { mutableStateOf(false) }
 
     // Estado do teclado contextual temporário (Requisito 16)
     var isKeyboardVisible by remember { mutableStateOf(false) }
     var detectedFieldName by remember { mutableStateOf<String?>(null) }
     var isMultiLineField by remember { mutableStateOf(false) }
-    var activeTransport by remember { mutableStateOf("Wi-Fi 5GHz") }
 
-    // Regra 4: Intercepta o botão Voltar do Android para fechar o teclado sem desconectar o espelhamento
-    BackHandler(enabled = isKeyboardVisible) {
-        isKeyboardVisible = false
+    // Estado do Módulo de Configurações Básicas do Android (Aparece SOMENTE sob solicitação expressa)
+    var isBasicSettingsOpen by remember { mutableStateOf(false) }
+    var isGrayscaleMode by remember { mutableStateOf(false) }
+    var isEconomyMode by remember { mutableStateOf(false) }
+
+    // Intercepta o botão Voltar do Android: se teclado ou configurações estiverem abertos, fecha-os sem desconectar
+    BackHandler(enabled = isKeyboardVisible || isBasicSettingsOpen) {
+        if (isBasicSettingsOpen) {
+            isBasicSettingsOpen = false
+        } else if (isKeyboardVisible) {
+            isKeyboardVisible = false
+        }
     }
 
     val mapper = remember {
@@ -1670,11 +1682,24 @@ fun StreamScreen(
         }
     }
 
+    // Aplica configurações básicas reais de imagem enviando ao Windows
+    fun applySettings(grayscale: Boolean, economy: Boolean) {
+        isGrayscaleMode = grayscale
+        isEconomyMode = economy
+        val json = org.json.JSONObject().apply {
+            put("type", "UPDATE_STREAM_SETTINGS")
+            put("colorMode", if (grayscale) "grayscale" else "full_color")
+            put("transmissionMode", if (economy) "economy" else "standard")
+        }
+        clientRef?.sendControlJson(json)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
+        // Imagem pura em tela cheia sem nenhum HUD ou botão sobreposto permanente
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { context ->
@@ -1685,8 +1710,8 @@ fun StreamScreen(
                     override fun surfaceCreated(holder: SurfaceHolder) {
                         decoder = HardwareVideoDecoder(
                             targetSurface = holder.surface,
-                            onFrameRendered = { latency -> measuredLatencyMs = latency },
-                            onError = { err -> connectionStatusText = "Erro: \${err.message}" }
+                            onFrameRendered = {},
+                            onError = {}
                         )
 
                         val client = TouchStreamClient(
@@ -1694,9 +1719,8 @@ fun StreamScreen(
                             port = host.port,
                             config = config,
                             decoder = decoder!!,
-                            onConnectionStateChanged = { connected, msg ->
+                            onConnectionStateChanged = { connected, _ ->
                                 isConnected = connected
-                                connectionStatusText = msg
                             },
                             onFocusStateReceived = { hasFocus, fieldType, fieldName, isMultiLine ->
                                 // Regra 1 e 5: Abertura e Reabertura Contextual Automática
@@ -1721,6 +1745,12 @@ fun StreamScreen(
                 })
 
                 surfaceView.setOnTouchListener { _, event ->
+                    // Gesto sob solicitação: toque simultâneo com 3 dedos abre o menu de configurações básicas do Android
+                    if (event.pointerCount >= 3 && event.actionMasked == MotionEvent.ACTION_POINTER_DOWN) {
+                        isBasicSettingsOpen = true
+                        return@setOnTouchListener true
+                    }
+
                     val actionCode: Byte = when (event.actionMasked) {
                         MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> 0
                         MotionEvent.ACTION_MOVE -> 1
@@ -1744,7 +1774,7 @@ fun StreamScreen(
                                 pixelX = mapped.pixelX,
                                 pixelY = mapped.pixelY
                             )
-                            // Regra 2: Envia o evento de toque imediatamente ao Windows enquanto recolhe o teclado
+                            // Regra 2: Envia o evento de toque imediatamente ao Windows enquanto recolhe o teclado se estava fora
                             clientRef?.sendBinaryTouch(packet)
                         }
                     }
@@ -1755,52 +1785,8 @@ fun StreamScreen(
             }
         )
 
-        // HUD Discreto Superior
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp)
-                .background(Color.Black.copy(alpha = 0.65f), CircleShape)
-                .padding(horizontal = 14.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .background(if (isConnected) Color(0xFF22C55E) else Color(0xFFEF4444), CircleShape)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "\${host.name} · \$activeTransport · \${measuredLatencyMs}ms",
-                color = Color.White,
-                fontSize = 12.sp
-            )
-            if (isKeyboardVisible && detectedFieldName != null) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Editando: '\$detectedFieldName'",
-                    color = Color(0xFF38BDF8),
-                    fontSize = 11.sp
-                )
-            }
-        }
-
-        // Regra 10: Botão manual alternativo discreto para abrir caso o aplicativo não exponha acessibilidade
-        FloatingActionButton(
-            onClick = { isKeyboardVisible = !isKeyboardVisible },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp),
-            containerColor = if (isKeyboardVisible) MaterialTheme.colorScheme.primary else Color(0x991E293B),
-            contentColor = Color.White
-        ) {
-            Icon(
-                imageVector = Icons.Default.Keyboard,
-                contentDescription = "Alternar Teclado"
-            )
-        }
-
-        // Regra 6 e 12: Animação rápida e discreta (150ms) do mini teclado flutuante
+        // Miniteclado Flutuante Contextual Temporário (Requisito 16)
+        // Aparece somente quando o foco do Windows estiver em campo de texto ou solicitado manualmente
         AnimatedVisibility(
             visible = isKeyboardVisible,
             enter = fadeIn(tween(150)) + slideInVertically(tween(150)) { it / 2 },
@@ -1810,22 +1796,97 @@ fun StreamScreen(
             FloatingMiniKeyboard(
                 isVisible = true,
                 keyboardMapper = keyboardMapper,
-                onClose = { isKeyboardVisible = false }, // Regra 4: Fechamento manual limpo
+                onClose = { isKeyboardVisible = false }, // Regra 4: Fechamento manual sem encerrar sessão
                 onToggleNativeIme = {
-                    // Alterna para IME do sistema Android
+                    // Alterna para IME do sistema se desejado
                 }
             )
         }
 
-        // Botão Fechar Sessão
-        IconButton(
-            onClick = onDisconnect,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .background(Color.Black.copy(alpha = 0.55f), CircleShape)
-        ) {
-            Icon(Icons.Default.Close, contentDescription = "Desconectar", tint = Color.White)
+        // Módulo de Configuração Básica do Android (Aberto SOMENTE sob solicitação expressa do operador via gesto de 3 dedos)
+        if (isBasicSettingsOpen) {
+            AlertDialog(
+                onDismissRequest = { isBasicSettingsOpen = false },
+                title = {
+                    Text(
+                        text = "Configurações de Imagem (Android)",
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text(
+                            text = "Ajustes básicos enviados diretamente ao servidor do Windows para adaptar a transmissão à capacidade do aparelho.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF94A3B8)
+                        )
+
+                        // Controle A: Taxa de Cores
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(text = "Taxa de Cores:", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = !isGrayscaleMode,
+                                    onClick = { applySettings(grayscale = false, economy = isEconomyMode) }
+                                )
+                                Text(text = "Cores Completas (RGB 32-bit)", fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = isGrayscaleMode,
+                                    onClick = { applySettings(grayscale = true, economy = isEconomyMode) }
+                                )
+                                Text(text = "Escala de Cinza (Menor custo de processamento)", fontSize = 12.sp)
+                            }
+                        }
+
+                        // Controle B: Modo de Transmissão
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(text = "Modo de Transmissão:", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = 13.sp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = !isEconomyMode,
+                                    onClick = { applySettings(grayscale = isGrayscaleMode, economy = false) }
+                                )
+                                Text(text = "Padrão (Fidelidade Normal)", fontSize = 12.sp)
+                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(
+                                    selected = isEconomyMode,
+                                    onClick = { applySettings(grayscale = isGrayscaleMode, economy = true) }
+                                )
+                                Text(text = "Econômico (Taxa de quadros reduzida)", fontSize = 12.sp)
+                            }
+                        }
+
+                        // Ações auxiliares sob demanda
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(
+                                onClick = {
+                                    isKeyboardVisible = !isKeyboardVisible
+                                    isBasicSettingsOpen = false
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(text = if (isKeyboardVisible) "Ocultar Teclado" else "Abrir Teclado", fontSize = 11.sp)
+                            }
+                            Button(
+                                onClick = onDisconnect,
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(text = "Desconectar", fontSize = 11.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { isBasicSettingsOpen = false }) {
+                        Text("Fechar")
+                    }
+                }
+            )
         }
     }
 }
