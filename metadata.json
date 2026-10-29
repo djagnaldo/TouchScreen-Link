@@ -1,0 +1,6 @@
+{
+  "name": "TouchScreen Link — PC Windows + Android",
+  "description": "Transforme a tela de um celular ou tablet Android em uma tela remota sensível ao toque para PC Windows com ultra baixa latência e aceleração por hardware.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
