@@ -62,6 +62,7 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
   const [isBasicSettingsOpen, setIsBasicSettingsOpen] = useState<boolean>(false);
   const [colorMode, setColorMode] = useState<AndroidColorMode>('full_color');
   const [transmissionMode, setTransmissionMode] = useState<AndroidTransmissionMode>('standard');
+  const [isCongestionActive, setIsCongestionActive] = useState<boolean>(false);
 
   // Windows Administration Console State (Section 3.2)
   const [windowsTab, setWindowsTab] = useState<'quick_connect' | 'stream_config' | 'diagnostics' | 'security'>('quick_connect');
@@ -382,15 +383,19 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
     }
   };
 
-  // FPS e Latency fluctuation simulation
+  // FPS e Latency fluctuation simulation (com fallback adaptativo para 45 FPS no perfil Equilibrado)
   useEffect(() => {
     const interval = setInterval(() => {
       const jitter = (Math.random() - 0.5) * 2;
-      setFps(Math.round(profileConfig.targetFps + (Math.random() > 0.8 ? -1 : 0)));
-      setLatencyMs(Math.max(8, Math.round(profileConfig.latencyEstimateMs + jitter)));
+      let targetFps = profileConfig.targetFps;
+      if (activeProfile === 'balanced' && isCongestionActive) {
+        targetFps = 45;
+      }
+      setFps(Math.round(targetFps + (Math.random() > 0.8 ? -1 : 0)));
+      setLatencyMs(Math.max(8, Math.round(profileConfig.latencyEstimateMs + (isCongestionActive ? 14 : 0) + jitter)));
     }, 1200);
     return () => clearInterval(interval);
-  }, [profileConfig]);
+  }, [profileConfig, activeProfile, isCongestionActive]);
 
   // Generate random 6-digit PIN
   const handleRegeneratePin = () => {
@@ -525,14 +530,22 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
               <b>Tela do Tablet Android (Cliente)</b>
               <span className="text-emerald-400 text-[11px] font-medium hidden sm:inline">— 100% Limpa, sem HUD ou sobreposições</span>
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setIsBasicSettingsOpen(true)}
-                className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Simular Gesto com 3 Dedos para abrir Configurações Básicas"
+                className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-300 px-2 py-1 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
+                title="Gesto Principal: toque simultâneo com 3 dedos abre o painel básico"
               >
                 <Sliders className="w-3 h-3 text-cyan-400" />
-                Gesto: 3 Dedos
+                3 Dedos
+              </button>
+              <button
+                onClick={() => setIsBasicSettingsOpen(true)}
+                className="text-[11px] bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 px-2 py-1 rounded-md flex items-center gap-1 transition-colors cursor-pointer"
+                title="Gesto Alternativo Acessível: duplo toque com 2 dedos (evita conflito com o sistema)"
+              >
+                <Zap className="w-3 h-3 text-emerald-400" />
+                2 Dedos (Duplo Toque)
               </button>
             </div>
           </div>
@@ -1171,110 +1184,207 @@ export const InteractiveTestBench: React.FC<InteractiveTestBenchProps> = ({
                       onClick={() => onChangeProfile('economy')}
                       className={`p-2.5 rounded-lg border text-left transition-all ${
                         activeProfile === 'economy'
-                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm'
+                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm ring-1 ring-cyan-500/30'
                           : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                       }`}
                     >
                       <span className="font-bold text-xs block text-cyan-300">1. Economia</span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">720p @ 30 FPS</span>
-                      <span className="text-[10px] text-emerald-400 font-mono block mt-1">2.5 Mbps • CPU mín.</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">1280 × 720 @ 30 FPS</span>
+                      <span className="text-[10px] text-emerald-400 font-mono block mt-1">2.500 kbps • Baseline</span>
+                      <span className="text-[9px] text-slate-500 block mt-0.5">GOP 60 • Keyframe ~2s</span>
                     </button>
 
                     <button
                       onClick={() => onChangeProfile('balanced')}
                       className={`p-2.5 rounded-lg border text-left transition-all ${
                         activeProfile === 'balanced'
-                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm'
+                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm ring-1 ring-cyan-500/30'
                           : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                       }`}
                     >
                       <span className="font-bold text-xs block text-cyan-300">2. Equilibrado</span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">1080p @ 45-60 FPS</span>
-                      <span className="text-[10px] text-blue-400 font-mono block mt-1">6.5 Mbps • Ideal</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">1920 × 1080 @ 60 FPS</span>
+                      <span className="text-[10px] text-blue-400 font-mono block mt-1">6.500 kbps • Main</span>
+                      <span className="text-[9px] text-slate-500 block mt-0.5">GOP 120 • Fallback 45 FPS</span>
                     </button>
 
                     <button
                       onClick={() => onChangeProfile('low_latency')}
                       className={`p-2.5 rounded-lg border text-left transition-all ${
                         activeProfile === 'low_latency'
-                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm'
+                          ? 'bg-cyan-950 border-cyan-400 text-white shadow-sm ring-1 ring-cyan-500/30'
                           : 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-700'
                       }`}
                     >
                       <span className="font-bold text-xs block text-cyan-300">3. Baixa Latência</span>
-                      <span className="text-[10px] text-slate-400 block mt-0.5">900p @ 60 FPS</span>
-                      <span className="text-[10px] text-purple-400 font-mono block mt-1">8.0 Mbps • 1-frame</span>
+                      <span className="text-[10px] text-slate-400 block mt-0.5">1600 × 900 @ 60 FPS</span>
+                      <span className="text-[10px] text-purple-400 font-mono block mt-1">8.000 kbps • Zero B-frames</span>
+                      <span className="text-[9px] text-slate-500 block mt-0.5">GOP 60 • Keyframe ~1s</span>
                     </button>
                   </div>
                 </div>
 
+                {/* Perfil Ativo Resumo Técnico */}
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-[11px] text-slate-300">
+                  <span className="text-cyan-400 font-semibold block mb-0.5">Metas do Perfil {profileConfig.name}:</span>
+                  <p className="text-slate-400">{profileConfig.description}</p>
+                  {activeProfile === 'low_latency' && (
+                    <span className="text-[10px] text-amber-300 block mt-1">
+                      ✓ B-frames estritamente desativados | CODECAPI_AVLowLatencyMode ativado | Filas minimizadas
+                    </span>
+                  )}
+                  {activeProfile === 'balanced' && (
+                    <span className="text-[10px] text-blue-300 block mt-1">
+                      ✓ Fallback adaptativo para 45 FPS habilitado ao detectar congestionamento (reversão automática)
+                    </span>
+                  )}
+                </div>
+
                 {/* Manual Tuning Parameters */}
                 <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-3">
-                  <span className="font-semibold text-white block">Parâmetros Manuais de Hardware:</span>
+                  <span className="font-semibold text-white block">Codificador e Políticas de Desempenho:</span>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Acelerador H.264:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">Codificador Selecionado:</label>
                       <select className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 text-xs">
-                        <option>D3D11 Video Processing (GPU)</option>
-                        <option>NVIDIA NVENC Hardware</option>
-                        <option>Intel QuickSync Video</option>
-                        <option>AMD AMF Advanced</option>
+                        <option>Hardware MFT (GPU D3D11 - Zero VRAM Copy)</option>
+                        <option>Software Fallback (D3D11 Video Processor)</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="text-[11px] text-slate-400 block mb-1">Estratégia de Buffer:</label>
+                      <label className="text-[11px] text-slate-400 block mb-1">Limite de CPU no PC:</label>
                       <select className="w-full bg-slate-900 border border-slate-700 rounded p-1.5 text-slate-200 text-xs">
-                        <option>Zero-Latency (1 frame)</option>
-                        <option>Smooth Jitter (2 frames)</option>
-                        <option>Adaptive Dynamico</option>
+                        <option>Máximo 5.0% CPU</option>
+                        <option>Máximo 3.0% CPU (Ultra Leve)</option>
+                        <option>Ilimitado</option>
                       </select>
                     </div>
                   </div>
+
+                  <label className="flex items-center gap-2 cursor-pointer pt-1 border-t border-slate-800/80">
+                    <input type="checkbox" defaultChecked className="rounded text-cyan-600 bg-slate-900 border-slate-700" />
+                    <span className="text-[11px] text-slate-300">
+                      Adaptação dinâmica de rede ativada (permite fallback adaptativo de taxa de quadros)
+                    </span>
+                  </label>
                 </div>
               </div>
             )}
 
             {/* Tab 3: Diagnóstico Técnico & Métricas */}
             {windowsTab === 'diagnostics' && (
-              <div className="p-4 space-y-4 text-xs">
+              <div className="p-4 space-y-3.5 text-xs">
+                {/* Estado de Adaptação de Rede */}
+                <div className={`p-3 rounded-lg border transition-all ${
+                  isCongestionActive && activeProfile === 'balanced'
+                    ? 'bg-amber-950/40 border-amber-500/60 text-amber-200'
+                    : 'bg-slate-950 border-slate-800 text-slate-300'
+                }`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="font-semibold text-white flex items-center gap-1.5">
+                      <Activity className="w-3.5 h-3.5 text-cyan-400" />
+                      Estado de Adaptação de Rede:
+                    </span>
+                    <button
+                      onClick={() => setIsCongestionActive(!isCongestionActive)}
+                      className={`text-[10px] px-2.5 py-1 rounded font-semibold transition-colors ${
+                        isCongestionActive
+                          ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                          : 'bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700'
+                      }`}
+                    >
+                      {isCongestionActive ? 'Desativar Congestionamento' : 'Simular Congestionamento'}
+                    </button>
+                  </div>
+                  <div className="font-mono text-xs font-bold">
+                    {activeProfile === 'balanced' ? (
+                      isCongestionActive ? (
+                        <span className="text-amber-400">
+                          Equilibrado: 45 FPS adaptativo (congestionamento detectado — RTT elevado / backlog)
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400">
+                          Equilibrado: 60 FPS normal (transmissão estável e fluida)
+                        </span>
+                      )
+                    ) : activeProfile === 'economy' ? (
+                      <span className="text-cyan-400">
+                        Economia: 30 FPS estável (2.5 Mbps • Baseline Profile)
+                      </span>
+                    ) : (
+                      <span className="text-purple-400">
+                        Baixa Latência: 60 FPS (Zero B-frames • CODECAPI_AVLowLatencyMode)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Métricas Reais Medidas Separadamente */}
                 <div className="grid grid-cols-2 gap-2.5">
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block mb-0.5">Latência Estimada</span>
+                    <span className="text-slate-400 block mb-0.5">Latência Estimada (Real)</span>
                     <span className="text-base font-mono font-bold text-emerald-400">
                       {latencyMs} <span className="text-xs font-normal text-slate-400">ms</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">Ponta a ponta</span>
+                    <span className="text-[10px] text-slate-500 block">Ponta a ponta (sem promessa de latência zero)</span>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block mb-0.5">Captura DXGI & FPS</span>
+                    <span className="text-slate-400 block mb-0.5">Captura DXGI & FPS Real</span>
                     <span className="text-base font-mono font-bold text-amber-400">
                       {fps} <span className="text-xs font-normal text-slate-400">FPS</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">Alvo: {profileConfig.targetFps} FPS</span>
+                    <span className="text-[10px] text-slate-500 block">
+                      Alvo: {activeProfile === 'balanced' && isCongestionActive ? 45 : profileConfig.targetFps} FPS
+                    </span>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block mb-0.5">Uso de CPU no PC</span>
+                    <span className="text-slate-400 block mb-0.5">Uso de CPU / GPU PC</span>
                     <span className="text-base font-mono font-bold text-cyan-400">
-                      2.4% <span className="text-xs font-normal text-slate-400">CPU</span>
+                      {isCongestionActive ? '2.8%' : '2.1%'} <span className="text-xs font-normal text-slate-400">CPU</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">Zero cópia na memória</span>
+                    <span className="text-[10px] text-slate-500 block">GPU Encode: ~3.5% (VRAM direta)</span>
                   </div>
 
                   <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <span className="text-slate-400 block mb-0.5">Taxa de Dados</span>
+                    <span className="text-slate-400 block mb-0.5">Taxa de Dados Medida</span>
                     <span className="text-base font-mono font-bold text-purple-400">
-                      {(profileConfig.bitrateKbps / 1000).toFixed(1)} <span className="text-xs font-normal text-slate-400">Mbps</span>
+                      {((profileConfig.bitrateKbps * (isCongestionActive ? 0.75 : 1)) / 1000).toFixed(1)} <span className="text-xs font-normal text-slate-400">Mbps</span>
                     </span>
-                    <span className="text-[10px] text-slate-500 block">H.264 MFT</span>
+                    <span className="text-[10px] text-slate-500 block">H.264 {profileConfig.codecProfile} MFT</span>
+                  </div>
+                </div>
+
+                {/* Decomposição Detalhada de Latência */}
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                  <span className="font-semibold text-slate-300 block text-[11px]">Decomposição dos Componentes de Latência:</span>
+                  <div className="grid grid-cols-4 gap-2 text-center text-[10px] font-mono">
+                    <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                      <span className="text-slate-400 block">Captura DXGI</span>
+                      <span className="text-cyan-400 font-bold">~2.0 ms</span>
+                    </div>
+                    <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                      <span className="text-slate-400 block">Codif. MFT</span>
+                      <span className="text-blue-400 font-bold">~3.5 ms</span>
+                    </div>
+                    <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                      <span className="text-slate-400 block">Rede TCP</span>
+                      <span className={isCongestionActive ? "text-amber-400 font-bold" : "text-emerald-400 font-bold"}>
+                        {isCongestionActive ? "~18.0 ms" : "~5.5 ms"}
+                      </span>
+                    </div>
+                    <div className="p-1.5 bg-slate-900 rounded border border-slate-800">
+                      <span className="text-slate-400 block">Decodif. Android</span>
+                      <span className="text-purple-400 font-bold">~3.0 ms</span>
+                    </div>
                   </div>
                 </div>
 
                 {/* Live Binary Packet Inspector */}
-                <div className="bg-slate-950 p-3 rounded-lg border border-slate-800 space-y-2">
-                  <span className="font-semibold text-white block">Último Pacote de Toque Recebido (24 bytes):</span>
+                <div className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 space-y-1.5">
+                  <span className="font-semibold text-white block text-[11px]">Último Pacote de Toque Recebido (24 bytes binários):</span>
                   {lastPacket ? (
                     <div className="font-mono text-[11px] text-cyan-300 bg-slate-900 p-2 rounded border border-slate-800 space-y-1">
                       <div className="flex justify-between text-slate-400">

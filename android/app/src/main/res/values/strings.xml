@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">TouchScreen Link</string>
+    <string name="connecting">Conectando ao PC...</string>
+    <string name="connected">Conectado</string>
+    <string name="disconnected">Desconectado</string>
+    <string name="scan_qr">Escanear QR Code</string>
+    <string name="enter_pin">Digitar PIN Temporário</string>
+    <string name="keyboard_toggle">Alternar Mini Teclado</string>
+</resources>

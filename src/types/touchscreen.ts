@@ -29,6 +29,11 @@ export interface StreamProfileConfig {
   targetFps: number;
   bitrateKbps: number;
   encoderPreset: string;
+  codecProfile: 'Baseline' | 'Main' | 'High';
+  gopFrames: number;
+  keyframeIntervalSec: number;
+  bFramesEnabled: boolean;
+  lowLatencyMode: boolean;
   bufferFrames: number;
   cpuTargetPercent: string;
   networkBandwidth: string;
