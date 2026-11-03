@@ -109,6 +109,9 @@ static class Program
             Font = new Font("Segoe UI", 9, FontStyle.Bold)
         };
         var statusItem = new ToolStripMenuItem("Servidor: Ativo (Porta 45820 - Wi-Fi / USB)") { Enabled = false };
+        var btItem = new ToolStripMenuItem(_bluetoothServer?.IsBluetoothAvailable == true
+            ? "Bluetooth: Pronto (RFCOMM Toque/Teclado)"
+            : "Bluetooth: Indisponível (Opcional)") { Enabled = false };
         var gpuItem = new ToolStripMenuItem($"Codificador: {MediaFoundationHardwareEncoder.DetectHardwareEncoder()}") { Enabled = false };
 
         var smartFocusItem = new ToolStripMenuItem("Ativação Inteligente de Teclado (UI Automation)")

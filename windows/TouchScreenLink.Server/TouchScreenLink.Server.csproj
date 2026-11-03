@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWindowsForms>true</UseWindowsForms>
+    <UseWPF>true</UseWPF>
     <ApplicationIcon Condition="Exists('Resources\icon.ico')">Resources\icon.ico</ApplicationIcon>
     <AssemblyName>TouchScreenLinkServer</AssemblyName>
     <RootNamespace>TouchScreenLink.Server</RootNamespace>
@@ -33,12 +34,6 @@
     <!-- Geração de QR Code nativo e serialização JSON -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
     <PackageReference Include="System.Text.Json" Version="8.0.5" />
-  </ItemGroup>
-
-  <!-- Referência nativa de Acessibilidade Windows UI Automation -->
-  <ItemGroup>
-    <Reference Include="UIAutomationClient" />
-    <Reference Include="UIAutomationTypes" />
   </ItemGroup>
 
 </Project>

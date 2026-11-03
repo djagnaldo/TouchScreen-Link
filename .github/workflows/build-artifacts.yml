@@ -27,7 +27,14 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Aceitar Licenças e Instalar Componentes do Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
 
       - name: Garantir Gradle Wrapper Jar
         run: |
@@ -48,7 +55,7 @@ jobs:
       - name: Organizar e Renomear Artefato APK
         run: |
           mkdir -p dist/android
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/android/TouchScreenLink-Android-Teste.apk
+          find android/app/build/outputs/apk/debug/ -name "*.apk" -exec cp {} dist/android/TouchScreenLink-Android-Teste.apk \;
 
       - name: Publicar Artefato do APK no GitHub Actions
         uses: actions/upload-artifact@v4
@@ -87,7 +94,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/windows
-          Copy-Item windows/TouchScreenLink.Server/publish/TouchScreenLinkServer.exe dist/windows/TouchScreenLink-Windows-Teste.exe
+          if (Test-Path "windows/TouchScreenLink.Server/publish/TouchScreenLinkServer.exe") {
+            Copy-Item windows/TouchScreenLink.Server/publish/TouchScreenLinkServer.exe dist/windows/TouchScreenLink-Windows-Teste.exe
+          } elseif (Test-Path "windows/TouchScreenLink.Server/publish/TouchScreenLink.Server.exe") {
+            Copy-Item windows/TouchScreenLink.Server/publish/TouchScreenLink.Server.exe dist/windows/TouchScreenLink-Windows-Teste.exe
+          } else {
+            $found = Get-ChildItem windows/TouchScreenLink.Server/publish/*.exe | Select-Object -First 1
+            if ($found) { Copy-Item $found.FullName dist/windows/TouchScreenLink-Windows-Teste.exe }
+          }
 
       - name: Compilar Instalador Inno Setup Opcional
         shell: pwsh

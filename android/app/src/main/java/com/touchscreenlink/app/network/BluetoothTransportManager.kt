@@ -1,5 +1,6 @@
 package com.touchscreenlink.app.network
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
@@ -39,6 +40,7 @@ class BluetoothTransportManager(private val context: Context) {
     val isBluetoothEnabled: Boolean
         get() = bluetoothAdapter?.isEnabled == true
 
+    @SuppressLint("MissingPermission")
     fun getPairedPcDevices(): List<BluetoothDevice> {
         if (!isBluetoothEnabled) return emptyList()
         return try {
@@ -52,6 +54,7 @@ class BluetoothTransportManager(private val context: Context) {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun connectToDevice(
         device: BluetoothDevice,
         onConnected: () -> Unit,

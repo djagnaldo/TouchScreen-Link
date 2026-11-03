@@ -42,7 +42,11 @@ class HardwareVideoDecoder(
             if (csd1 != null) cachedCsd1 = csd1
 
             val format = MediaFormat.createVideoFormat(MIME_TYPE, width, height).apply {
-                setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                    setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+                } else {
+                    setInteger("low-latency", 1)
+                }
                 setInteger(MediaFormat.KEY_PRIORITY, 0)
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, android.media.MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
 

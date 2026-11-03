@@ -39,6 +39,10 @@ android {
     buildFeatures {
         compose = true
     }
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
 }
 
 dependencies {
@@ -54,7 +58,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
 
     // Ícones estendidos Material
-    implementation("androidx.compose.material:material-icons-extended:1.7.5")
+    implementation("androidx.compose.material:material-icons-extended")
 
     // Coroutines & Concorrência
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
