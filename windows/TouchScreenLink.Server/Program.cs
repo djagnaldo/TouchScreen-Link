@@ -4,7 +4,6 @@ using System.Threading;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using TouchScreenLink.Server.Accessibility;
-using TouchScreenLink.Server.Bluetooth;
 using TouchScreenLink.Server.Capture;
 using TouchScreenLink.Server.Encoder;
 using TouchScreenLink.Server.Input;
@@ -19,7 +18,6 @@ static class Program
     private static Mutex? _singleInstanceMutex;
     private static NotifyIcon? _trayIcon;
     private static StreamServer? _streamServer;
-    private static BluetoothServer? _bluetoothServer;
     private static FocusDetectionService? _focusDetector;
     private static DiscoveryBeacon? _discoveryBeacon;
     private static WindowsInputSimulator? _mouseSimulator;
@@ -46,7 +44,7 @@ static class Program
             CreateTrayIcon();
 
             bool startSilent = args.Length > 0 && args[0].Equals("--silent", StringComparison.OrdinalIgnoreCase);
-            _mainWindow = new MainWindow(_streamServer!, _pairingManager!, _bluetoothServer!);
+            _mainWindow = new MainWindow(_streamServer!, _pairingManager!);
 
             if (startSilent)
             {
@@ -109,9 +107,6 @@ static class Program
             Font = new Font("Segoe UI", 9, FontStyle.Bold)
         };
         var statusItem = new ToolStripMenuItem("Servidor: Ativo (Porta 45820 - Wi-Fi / USB)") { Enabled = false };
-        var btItem = new ToolStripMenuItem(_bluetoothServer?.IsBluetoothAvailable == true
-            ? "Bluetooth: Pronto (RFCOMM Toque/Teclado)"
-            : "Bluetooth: Indisponível (Opcional)") { Enabled = false };
         var gpuItem = new ToolStripMenuItem($"Codificador: {MediaFoundationHardwareEncoder.DetectHardwareEncoder()}") { Enabled = false };
 
         var smartFocusItem = new ToolStripMenuItem("Ativação Inteligente de Teclado (UI Automation)")
@@ -142,7 +137,6 @@ static class Program
         contextMenu.Items.Add(openItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(statusItem);
-        contextMenu.Items.Add(btItem);
         contextMenu.Items.Add(gpuItem);
         contextMenu.Items.Add(new ToolStripSeparator());
         contextMenu.Items.Add(smartFocusItem);

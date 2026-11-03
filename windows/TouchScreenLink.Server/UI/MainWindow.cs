@@ -1,7 +1,6 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
-using TouchScreenLink.Server.Bluetooth;
 using TouchScreenLink.Server.Encoder;
 using TouchScreenLink.Server.Network;
 using TouchScreenLink.Server.Security;
@@ -20,7 +19,6 @@ public sealed class MainWindow : Form
 {
     private readonly StreamServer _streamServer;
     private readonly PairingManager _pairingManager;
-    private readonly BluetoothServer? _bluetoothServer;
 
     private TabControl _tabControl = null!;
     
@@ -57,11 +55,10 @@ public sealed class MainWindow : Form
     private CheckBox _chkRequirePinConfirmation = null!;
     private CheckBox _chkEnforceEncryption = null!;
 
-    public MainWindow(StreamServer streamServer, PairingManager pairingManager, BluetoothServer? bluetoothServer = null)
+    public MainWindow(StreamServer streamServer, PairingManager pairingManager)
     {
         _streamServer = streamServer;
         _pairingManager = pairingManager;
-        _bluetoothServer = bluetoothServer;
 
         InitializeComponent();
         RefreshQrAndPin();
