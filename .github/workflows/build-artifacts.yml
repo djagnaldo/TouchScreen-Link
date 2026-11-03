@@ -1,0 +1,147 @@
+name: Build TouchScreen Link (Android APK & Windows EXE)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # -------------------------------------------------------------
+  # JOB 1: Compilação do Aplicativo Android Nativo (APK)
+  # -------------------------------------------------------------
+  build-android:
+    name: Compilar APK Android
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Dar permissão de execução ao Gradle Wrapper
+        run: chmod +x android/gradlew
+
+      - name: Compilar APK de Depuração (Auto-assinado para testes)
+        run: |
+          cd android
+          ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Organizar e Renomear Artefato APK
+        run: |
+          mkdir -p dist/android
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/android/TouchScreenLink-Android-Teste.apk
+
+      - name: Publicar Artefato do APK no GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: TouchScreenLink-Android-Teste-APK
+          path: dist/android/TouchScreenLink-Android-Teste.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  # -------------------------------------------------------------
+  # JOB 2: Compilação do Servidor Windows Nativo (EXE Self-Contained)
+  # -------------------------------------------------------------
+  build-windows:
+    name: Compilar Executável Windows (x64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar .NET 8.0 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restaurar Dependências NuGet
+        run: |
+          dotnet restore windows/TouchScreenLink.Server/TouchScreenLink.Server.csproj
+
+      - name: Publicar Executável Self-Contained x64
+        run: |
+          dotnet publish windows/TouchScreenLink.Server/TouchScreenLink.Server.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -o publish_win
+
+      - name: Organizar e Renomear Artefato EXE
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/windows
+          Copy-Item publish_win/TouchScreenLinkServer.exe dist/windows/TouchScreenLink-Windows-Teste.exe
+
+      - name: Compilar Instalador Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+            /DAppVersion="1.1.0" `
+            /O"dist/windows" `
+            /F"TouchScreenLink-Windows-Instalador" `
+            windows/TouchScreenLink.Server/Installer/TouchScreenLinkSetup.iss
+        continue-on-error: true
+
+      - name: Publicar Artefatos do Windows no GitHub Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: TouchScreenLink-Windows-Teste-EXE
+          path: dist/windows/*
+          if-no-files-found: error
+          retention-days: 30
+
+  # -------------------------------------------------------------
+  # JOB 3: Publicação de Release Oficial no GitHub
+  # -------------------------------------------------------------
+  create-release:
+    name: Publicar Release com APK e EXE
+    needs: [build-android, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Baixar Artefato APK
+        uses: actions/download-artifact@v4
+        with:
+          name: TouchScreenLink-Android-Teste-APK
+          path: release_assets/
+
+      - name: Baixar Artefatos Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: TouchScreenLink-Windows-Teste-EXE
+          path: release_assets/
+
+      - name: Criar Release no GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || 'v1.1.0-teste' }}
+          name: "TouchScreen Link v1.1.0 — Versão de Testes"
+          body: |
+            ## TouchScreen Link — Versão Oficial de Testes Reais (v1.1.0)
+            
+            Esta versão inclui a codificação real H.264 por hardware (Media Foundation MFT) para Windows e decodificação acelerada MediaCodec para Android.
+            
+            ### Arquivos Disponíveis para Download Direto:
+            - **TouchScreenLink-Android-Teste.apk**: Aplicativo Android instalável para celulares e tablets (ARM64 / x86_64).
+            - **TouchScreenLink-Windows-Teste.exe**: Executável único autônomo (Self-Contained x64) para PC Windows 10/11 (não requer instalação de .NET Runtime).
+            - **TouchScreenLink-Windows-Instalador.exe**: Instalador assistido opcional para Windows com desinstalador limpo.
+          files: release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

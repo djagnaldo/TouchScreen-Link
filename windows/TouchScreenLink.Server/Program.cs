@@ -89,18 +89,14 @@ static class Program
         );
         _streamServer.Start();
 
-        // 2. Servidor Bluetooth RFCOMM Complementar (Opcional para teclado e controle)
-        _bluetoothServer = new BluetoothServer(_mouseSimulator, _keyboardSimulator);
-        _bluetoothServer.Start();
-
-        // 3. Serviço Inteligente de Detecção de Foco em Campos de Texto (UI Automation)
+        // 2. Serviço Inteligente de Detecção de Foco em Campos de Texto (UI Automation)
         _focusDetector = new FocusDetectionService(onFocusChanged: (isFocused, fieldType, fieldName, isMultiLine, x, y, w, h) =>
         {
             _streamServer?.NotifyFocusChanged(isFocused, fieldType, fieldName, isMultiLine, x, y, w, h);
         });
         _focusDetector.Start();
 
-        // 4. Beacon UDP para descoberta instantânea
+        // 3. Beacon UDP para descoberta instantânea na rede local (Wi-Fi e USB)
         _discoveryBeacon = new DiscoveryBeacon(serverPort: 45820);
         _discoveryBeacon.Start();
     }
@@ -112,9 +108,7 @@ static class Program
         {
             Font = new Font("Segoe UI", 9, FontStyle.Bold)
         };
-        var statusItem = new ToolStripMenuItem("Servidor: Ativo (Porta 45820)") { Enabled = false };
-        var btStatus = _bluetoothServer?.IsBluetoothAvailable == true ? "Bluetooth: Pronto (RFCOMM SPP)" : "Bluetooth: Indisponível";
-        var btItem = new ToolStripMenuItem(btStatus) { Enabled = false };
+        var statusItem = new ToolStripMenuItem("Servidor: Ativo (Porta 45820 - Wi-Fi / USB)") { Enabled = false };
         var gpuItem = new ToolStripMenuItem($"Codificador: {MediaFoundationHardwareEncoder.DetectHardwareEncoder()}") { Enabled = false };
 
         var smartFocusItem = new ToolStripMenuItem("Ativação Inteligente de Teclado (UI Automation)")

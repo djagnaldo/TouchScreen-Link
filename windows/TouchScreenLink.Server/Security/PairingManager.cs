@@ -78,6 +78,9 @@ public sealed class PairingManager
         return qrCode.GetGraphic(10, Color.FromArgb(15, 23, 42), Color.White, true);
     }
 
+    public string GenerateRandomPin() => GenerateNewPin();
+    public Bitmap GenerateQrCodeImage(int size = 300) => GeneratePairingQrBitmap(size);
+
     private static string GenerateRandomSecret(int length)
     {
         using var rng = RandomNumberGenerator.Create();

@@ -11,7 +11,8 @@ namespace TouchScreenLink.Server.Network;
 
 /// <summary>
 /// Emite anúncios UDP periódicos (Porta 45824) e responde a consultas de descoberta
-/// enviadas pelos celulares e tablets Android na rede local.
+/// enviadas pelos celulares e tablets Android na rede local Wi-Fi e USB.
+/// Prioriza Wi-Fi e USB RNDIS (sem áudio e sem dependência de Bluetooth).
 /// </summary>
 public sealed class DiscoveryBeacon : IDisposable
 {
@@ -64,7 +65,7 @@ public sealed class DiscoveryBeacon : IDisposable
                     port = _serverPort,
                     os = "Windows 11 / 10",
                     supportsKeyboard = true,
-                    supportsBluetooth = true
+                    supportsBluetooth = false // Desativado expressamente nesta etapa
                 };
 
                 string json = JsonSerializer.Serialize(payload);

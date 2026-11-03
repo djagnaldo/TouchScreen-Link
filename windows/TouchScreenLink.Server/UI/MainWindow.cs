@@ -20,7 +20,7 @@ public sealed class MainWindow : Form
 {
     private readonly StreamServer _streamServer;
     private readonly PairingManager _pairingManager;
-    private readonly BluetoothServer _bluetoothServer;
+    private readonly BluetoothServer? _bluetoothServer;
 
     private TabControl _tabControl = null!;
     
@@ -57,7 +57,7 @@ public sealed class MainWindow : Form
     private CheckBox _chkRequirePinConfirmation = null!;
     private CheckBox _chkEnforceEncryption = null!;
 
-    public MainWindow(StreamServer streamServer, PairingManager pairingManager, BluetoothServer bluetoothServer)
+    public MainWindow(StreamServer streamServer, PairingManager pairingManager, BluetoothServer? bluetoothServer = null)
     {
         _streamServer = streamServer;
         _pairingManager = pairingManager;
@@ -590,6 +590,7 @@ public sealed class MainWindow : Form
         _lblMeasuredFps.Text = $"Taxa de Quadros Real: {fps:F1} FPS (Captura DXGI contínua)";
         _lblMeasuredBitrate.Text = $"Bitrate Real Medido: {(bitrate / 1000.0):F2} Mbps (Codificador H.264 MFT)";
         _lblDroppedFrames.Text = $"Quadros Descartados: {_streamServer.DroppedFramesCount} | Buffer de envio: 0 frames acumulados";
+        _lblProcessCpuGpu.Text = $"Codificador Ativo: {_streamServer.EncoderName} ({(_streamServer.IsHardwareAccelerated ? "Aceleração GPU" : "CPU Software")}) | Tempo de Codificação: {_streamServer.LastEncodeTimeMs:F1} ms";
     }
 
     protected override void Dispose(bool disposing)

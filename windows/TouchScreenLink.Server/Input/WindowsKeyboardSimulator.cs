@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using TouchScreenLink.Server.Security;
@@ -7,7 +8,8 @@ namespace TouchScreenLink.Server.Input;
 
 /// <summary>
 /// Converte pacotes binários autenticados de 16 bytes em entradas reais de teclado do Windows.
-/// Preserva o foco do elemento ativo sem roubar janelas e suporta caracteres Unicode acentuados.
+/// Preserva o foco do elemento ativo sem roubar janelas e suporta integralmente caracteres Unicode
+/// acentuados e caracteres fora do BMP (surrogate pairs) via VK_PACKET / KEYEVENTF_UNICODE.
 /// </summary>
 public sealed class WindowsKeyboardSimulator
 {
@@ -51,7 +53,7 @@ public sealed class WindowsKeyboardSimulator
 
         if (action == 2 && unicodeChar > 0)
         {
-            InjectUnicodeChar((char)unicodeChar);
+            InjectUnicodeCodePoint(unicodeChar);
         }
         else if (virtualKey > 0)
         {
@@ -60,35 +62,74 @@ public sealed class WindowsKeyboardSimulator
         }
     }
 
-    public void InjectUnicodeChar(char c)
+    public void InjectUnicodeCodePoint(int codePoint)
     {
-        var inputDown = new INPUT
-        {
-            type = INPUT_KEYBOARD,
-            ki = new KEYBDINPUT
-            {
-                wVk = 0,
-                wScan = (ushort)c,
-                dwFlags = KEYEVENTF_UNICODE,
-                time = 0,
-                dwExtraInfo = IntPtr.Zero
-            }
-        };
+        if (codePoint <= 0 || codePoint > 0x10FFFF) return;
 
-        var inputUp = new INPUT
+        // Trata caracteres fora do Basic Multilingual Plane (BMP) através de surrogate pairs
+        if (codePoint > 0xFFFF)
         {
-            type = INPUT_KEYBOARD,
-            ki = new KEYBDINPUT
+            string s = char.ConvertFromUtf32(codePoint);
+            var inputs = new List<INPUT>();
+            foreach (char c in s)
             {
-                wVk = 0,
-                wScan = (ushort)c,
-                dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
-                time = 0,
-                dwExtraInfo = IntPtr.Zero
+                inputs.Add(new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = (ushort)c,
+                        dwFlags = KEYEVENTF_UNICODE,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                });
+                inputs.Add(new INPUT
+                {
+                    type = INPUT_KEYBOARD,
+                    ki = new KEYBDINPUT
+                    {
+                        wVk = 0,
+                        wScan = (ushort)c,
+                        dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                        time = 0,
+                        dwExtraInfo = IntPtr.Zero
+                    }
+                });
             }
-        };
+            SendInput((uint)inputs.Count, inputs.ToArray(), Marshal.SizeOf(typeof(INPUT)));
+        }
+        else
+        {
+            var inputDown = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                ki = new KEYBDINPUT
+                {
+                    wVk = 0,
+                    wScan = (ushort)codePoint,
+                    dwFlags = KEYEVENTF_UNICODE,
+                    time = 0,
+                    dwExtraInfo = IntPtr.Zero
+                }
+            };
 
-        SendInput(2, new[] { inputDown, inputUp }, Marshal.SizeOf(typeof(INPUT)));
+            var inputUp = new INPUT
+            {
+                type = INPUT_KEYBOARD,
+                ki = new KEYBDINPUT
+                {
+                    wVk = 0,
+                    wScan = (ushort)codePoint,
+                    dwFlags = KEYEVENTF_UNICODE | KEYEVENTF_KEYUP,
+                    time = 0,
+                    dwExtraInfo = IntPtr.Zero
+                }
+            };
+
+            SendInput(2, new[] { inputDown, inputUp }, Marshal.SizeOf(typeof(INPUT)));
+        }
     }
 
     public void InjectVirtualKey(ushort vkCode, bool isKeyUp)

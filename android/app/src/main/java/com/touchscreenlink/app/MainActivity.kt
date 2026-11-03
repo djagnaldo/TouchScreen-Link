@@ -60,7 +60,6 @@ class MainActivity : ComponentActivity() {
                             onConfigChange = { streamConfig = it },
                             keepScreenOn = keepScreenOn,
                             onKeepScreenOnChange = { keepScreenOn = it },
-                            bluetoothManager = bluetoothManager,
                             onConnect = { host ->
                                 currentTargetHost = host
                             }

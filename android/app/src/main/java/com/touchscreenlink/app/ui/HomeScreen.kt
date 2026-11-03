@@ -1,7 +1,6 @@
 package com.touchscreenlink.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,15 +13,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.touchscreenlink.app.model.DiscoveredHost
 import com.touchscreenlink.app.model.StreamConfig
-import com.touchscreenlink.app.model.StreamProfile
-import com.touchscreenlink.app.network.BluetoothTransportManager
 import com.touchscreenlink.app.network.DiscoveryClient
 
 @Composable
@@ -31,12 +27,13 @@ fun HomeScreen(
     onConfigChange: (StreamConfig) -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    bluetoothManager: BluetoothTransportManager,
     onConnect: (DiscoveredHost) -> Unit
 ) {
     var discoveredHosts by remember { mutableStateOf<List<DiscoveredHost>>(emptyList()) }
     var isManualDialogVisible by remember { mutableStateOf(false) }
+    var selectedHostForPin by remember { mutableStateOf<DiscoveredHost?>(null) }
     var manualIp by remember { mutableStateOf("192.168.1.100") }
+    var pairingPin by remember { mutableStateOf("") }
 
     val discoveryClient = remember {
         DiscoveryClient { newHost ->
@@ -77,7 +74,7 @@ fun HomeScreen(
                     color = Color.White
                 )
                 Text(
-                    text = "Transforme este aparelho em tela de toque para seu PC",
+                    text = "Espelhamento de baixa latência e controle de toque para Windows (Wi-Fi / USB)",
                     fontSize = 13.sp,
                     color = Color(0xFF94A3B8)
                 )
@@ -95,7 +92,7 @@ fun HomeScreen(
 
         // Lista de Dispositivos Detectados
         Text(
-            text = "Computadores Windows Detectados na Rede:",
+            text = "Computadores Windows Detectados na Rede Local:",
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             color = Color(0xFFCBD5E1)
@@ -112,7 +109,7 @@ fun HomeScreen(
                     .padding(20.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     CircularProgressIndicator(color = Color(0xFF0284C7), modifier = Modifier.size(32.dp))
                     Text(
                         text = "Procurando computadores na rede local (Porta 45824)...",
@@ -123,6 +120,8 @@ fun HomeScreen(
                         onClick = { isManualDialogVisible = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
                     ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text("Conectar por IP Manual")
                     }
                 }
@@ -133,7 +132,10 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(discoveredHosts) { host ->
-                    HostCard(host = host, onSelect = { onConnect(host) })
+                    HostCard(host = host, onSelect = {
+                        selectedHostForPin = host
+                        pairingPin = ""
+                    })
                 }
             }
         }
@@ -163,24 +165,87 @@ fun HomeScreen(
         }
     }
 
+    // Modal de confirmação de PIN para Host Selecionado
+    selectedHostForPin?.let { host ->
+        AlertDialog(
+            onDismissRequest = { selectedHostForPin = null },
+            title = { Text("Autenticação com ${host.name}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Digite o PIN de 6 dígitos exibido na tela do computador Windows:",
+                        fontSize = 13.sp,
+                        color = Color(0xFFCBD5E1)
+                    )
+                    OutlinedTextField(
+                        value = pairingPin,
+                        onValueChange = { if (it.length <= 6) pairingPin = it.filter { char -> char.isDigit() } },
+                        label = { Text("PIN de 6 dígitos") },
+                        placeholder = { Text("Ex: 123456") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val hostWithPin = host.copy(pin = pairingPin.trim())
+                        selectedHostForPin = null
+                        onConnect(hostWithPin)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                ) {
+                    Text("Conectar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedHostForPin = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
+
+    // Modal de Conexão Manual por IP
     if (isManualDialogVisible) {
         AlertDialog(
             onDismissRequest = { isManualDialogVisible = false },
             title = { Text("Conexão Manual por IP") },
             text = {
-                OutlinedTextField(
-                    value = manualIp,
-                    onValueChange = { manualIp = it },
-                    label = { Text("Endereço IP do Computador") },
-                    singleLine = true
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = manualIp,
+                        onValueChange = { manualIp = it },
+                        label = { Text("Endereço IP do Computador") },
+                        placeholder = { Text("Ex: 192.168.1.50 ou 192.168.42.129") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = pairingPin,
+                        onValueChange = { if (it.length <= 6) pairingPin = it.filter { char -> char.isDigit() } },
+                        label = { Text("PIN de 6 dígitos do PC") },
+                        placeholder = { Text("Ex: 123456") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         isManualDialogVisible = false
-                        onConnect(DiscoveredHost("manual", "PC Manual", manualIp.trim(), 45820))
-                    }
+                        val host = DiscoveredHost(
+                            id = manualIp.trim(),
+                            name = "PC Manual (${manualIp.trim()})",
+                            ip = manualIp.trim(),
+                            port = 45820,
+                            pin = pairingPin.trim()
+                        )
+                        onConnect(host)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
                 ) {
                     Text("Conectar")
                 }

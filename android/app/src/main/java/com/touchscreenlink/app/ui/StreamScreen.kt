@@ -31,7 +31,7 @@ import org.json.JSONObject
 fun StreamScreen(
     host: DiscoveredHost,
     config: StreamConfig,
-    bluetoothManager: BluetoothTransportManager,
+    bluetoothManager: BluetoothTransportManager? = null,
     onDisconnect: () -> Unit
 ) {
     var isConnected by remember { mutableStateOf(false) }
@@ -67,7 +67,6 @@ fun StreamScreen(
     val keyboardMapper = remember {
         KeyboardInputMapper { packet ->
             clientRef?.sendBinaryKeyboard(packet)
-            bluetoothManager.sendBinaryData(packet)
 
             // Regra 3: Se pressionou Enter em campo de linha única (Busca, URL), fecha o teclado automaticamente
             val isEnterKey = (packet.size >= 4 && packet[2] == 0x0D.toByte())
@@ -128,7 +127,7 @@ fun StreamScreen(
                             }
                         )
                         clientRef = client
-                        client.connect()
+                        client.connect(host.pin)
                     }
 
                     override fun surfaceChanged(holder: SurfaceHolder, format: Int, w: Int, h: Int) {
@@ -193,9 +192,8 @@ fun StreamScreen(
                                 pixelX = mapped.pixelX,
                                 pixelY = mapped.pixelY
                             )
-                            // Envio direto e imediato do evento de toque com baixíssima latência
+                            // Envio direto e imediato do evento de toque com baixíssima latência via Wi-Fi/USB
                             clientRef?.sendBinaryTouch(packet)
-                            bluetoothManager.sendBinaryData(packet)
                         }
                     }
                     true

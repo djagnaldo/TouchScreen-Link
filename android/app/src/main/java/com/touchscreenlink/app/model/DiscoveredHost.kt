@@ -7,5 +7,6 @@ data class DiscoveredHost(
     val port: Int = 45820,
     val latencyMs: Int = 0,
     val isBluetooth: Boolean = false,
-    val macAddress: String? = null
+    val macAddress: String? = null,
+    val pin: String = ""
 )

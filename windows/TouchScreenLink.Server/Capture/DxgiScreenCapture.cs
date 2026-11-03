@@ -11,8 +11,9 @@ namespace TouchScreenLink.Server.Capture;
 
 /// <summary>
 /// Captura a tela principal do Windows diretamente em memória de vídeo (VRAM)
-/// usando a Desktop Duplication API do DXGI. Evita cópias na CPU e minimiza a latência.
-/// Suporta modo Escala de Cinza sob solicitação do Android para economia de largura de banda.
+/// usando a Desktop Duplication API do DXGI.
+/// Otimizado para reutilização de buffers pré-alocados (zero alocação de GC por quadro),
+/// recuperação automática em DXGI_ERROR_ACCESS_LOST e conversão rápida de escala de cinza.
 /// </summary>
 public sealed class DxgiScreenCapture : IDisposable
 {
@@ -23,9 +24,11 @@ public sealed class DxgiScreenCapture : IDisposable
     private int _screenHeight;
     private bool _isInitialized;
     private bool _isGrayscaleMode;
+    private byte[]? _frameBuffer;
 
     public int ScreenWidth => _screenWidth;
     public int ScreenHeight => _screenHeight;
+    public bool IsInitialized => _isInitialized;
 
     public DxgiScreenCapture()
     {
@@ -60,7 +63,7 @@ public sealed class DxgiScreenCapture : IDisposable
             // Duplica a saída da tela principal
             _deskDupl = output1.DuplicateOutput(_d3dDevice);
 
-            // Cria textura de staging compatível para leitura
+            // Cria textura de staging compatível para leitura com zero cópias intermediárias
             var textureDesc = new Texture2DDescription
             {
                 CpuAccessFlags = CpuAccessFlags.Read,
@@ -76,6 +79,13 @@ public sealed class DxgiScreenCapture : IDisposable
             };
 
             _stagingTexture = new Texture2D(_d3dDevice, textureDesc);
+
+            int requiredBufferSize = _screenWidth * _screenHeight * 4;
+            if (_frameBuffer == null || _frameBuffer.Length != requiredBufferSize)
+            {
+                _frameBuffer = new byte[requiredBufferSize];
+            }
+
             _isInitialized = true;
             Debug.WriteLine($"DXGI Capture inicializado com sucesso: {_screenWidth}x{_screenHeight}");
         }
@@ -88,11 +98,12 @@ public sealed class DxgiScreenCapture : IDisposable
 
     /// <summary>
     /// Captura o próximo frame disponível da tela.
-    /// Retorna os bytes em formato BGRA ou nulo se não houver novo frame dentro do timeout.
+    /// Retorna os bytes em formato BGRA utilizando buffer pré-alocado (evitando pressão no Garbage Collector)
+    /// ou nulo se não houver novo frame dentro do timeout.
     /// </summary>
     public byte[]? AcquireLatestFrame(int timeoutMs = 16)
     {
-        if (!_isInitialized || _deskDupl == null || _d3dDevice == null || _stagingTexture == null)
+        if (!_isInitialized || _deskDupl == null || _d3dDevice == null || _stagingTexture == null || _frameBuffer == null)
         {
             InitializeCapture();
             return null;
@@ -117,14 +128,13 @@ public sealed class DxgiScreenCapture : IDisposable
             }
 
             var dataBox = _d3dDevice.ImmediateContext.MapSubresource(_stagingTexture, 0, MapMode.Read, SharpDX.Direct3D11.MapFlags.None);
-            byte[] frameBytes = new byte[_screenWidth * _screenHeight * 4];
 
             try
             {
                 unsafe
                 {
                     byte* srcPtr = (byte*)dataBox.DataPointer;
-                    fixed (byte* dstPtr = frameBytes)
+                    fixed (byte* dstPtr = _frameBuffer)
                     {
                         int rowPitch = dataBox.RowPitch;
                         int copyWidth = _screenWidth * 4;
@@ -165,7 +175,7 @@ public sealed class DxgiScreenCapture : IDisposable
                 _deskDupl.ReleaseFrame();
             }
 
-            return frameBytes;
+            return _frameBuffer;
         }
         catch (SharpDXException ex) when (ex.ResultCode == SharpDX.DXGI.ResultCode.AccessLost || ex.ResultCode == SharpDX.DXGI.ResultCode.AccessDenied)
         {

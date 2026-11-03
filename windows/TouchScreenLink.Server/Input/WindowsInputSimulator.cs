@@ -9,6 +9,7 @@ namespace TouchScreenLink.Server.Input;
 /// <summary>
 /// Converte pacotes de toque de 24 bytes recebidos do Android em entradas nativas do mouse no Windows
 /// usando a função de alta precisão SendInput da user32.dll.
+/// Suporta clique simples, arrastar, soltar, clique com botão direito e cancelamento.
 /// </summary>
 public sealed class WindowsInputSimulator
 {
@@ -17,7 +18,8 @@ public sealed class WindowsInputSimulator
     private const uint MOUSEEVENTF_LEFTDOWN = 0x0002;
     private const uint MOUSEEVENTF_LEFTUP = 0x0004;
     private const uint MOUSEEVENTF_RIGHTDOWN = 0x0008;
-    private const uint MOUSEEVENTF_RIGHTUP = 0x0009;
+    private const uint MOUSEEVENTF_RIGHTUP = 0x0010; // Corrigido de 0x0009 para 0x0010 (Win32 API padrão)
+    private const uint MOUSEEVENTF_WHEEL = 0x0800;
     private const uint MOUSEEVENTF_ABSOLUTE = 0x8000;
     private const uint MOUSEEVENTF_VIRTUALDESK = 0x4000;
 
@@ -59,28 +61,39 @@ public sealed class WindowsInputSimulator
             return;
         }
 
-        byte action = packet[1]; // 0=DOWN, 1=MOVE, 2=UP, 3=CANCEL
+        byte action = packet[1]; // 0=DOWN, 1=MOVE, 2=UP, 3=CANCEL, 4=RIGHT_CLICK
         float normX = BitConverter.ToSingle(packet, 8);
         float normY = BitConverter.ToSingle(packet, 12);
 
         int absX = (int)(normX * 65535.0f);
         int absY = (int)(normY * 65535.0f);
 
-        uint flags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
+        uint baseMoveFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK;
 
         switch (action)
         {
             case 0: // ACTION_DOWN
-                flags |= MOUSEEVENTF_LEFTDOWN;
+                SendMouseInput(absX, absY, baseMoveFlags | MOUSEEVENTF_LEFTDOWN);
                 break;
+
             case 1: // ACTION_MOVE
+                SendMouseInput(absX, absY, baseMoveFlags);
                 break;
+
             case 2: // ACTION_UP
             case 3: // ACTION_CANCEL
-                flags |= MOUSEEVENTF_LEFTUP;
+                SendMouseInput(absX, absY, baseMoveFlags | MOUSEEVENTF_LEFTUP);
+                break;
+
+            case 4: // ACTION_RIGHT_CLICK (Toque longo ou gesto secundário)
+                SendMouseInput(absX, absY, baseMoveFlags | MOUSEEVENTF_RIGHTDOWN);
+                SendMouseInput(absX, absY, baseMoveFlags | MOUSEEVENTF_RIGHTUP);
                 break;
         }
+    }
 
+    private static void SendMouseInput(int absX, int absY, uint flags, uint mouseData = 0)
+    {
         var input = new INPUT
         {
             type = INPUT_MOUSE,
@@ -88,7 +101,7 @@ public sealed class WindowsInputSimulator
             {
                 dx = absX,
                 dy = absY,
-                mouseData = 0,
+                mouseData = mouseData,
                 dwFlags = flags,
                 time = 0,
                 dwExtraInfo = IntPtr.Zero

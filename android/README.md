@@ -2,13 +2,25 @@
 
 Aplicativo Android nativo de tela sensível ao toque remota para PC Windows, desenvolvido com Kotlin e Jetpack Compose.
 
-## Novos Recursos (v1.1):
-- **Mini Teclado Flutuante Integrado**: Teclado virtual arrastável e minimizável com suporte integral a acentos portugueses (á, é, í, ó, ú, â, ê, ô, ã, õ, ç), teclas modificadoras (Ctrl, Alt, Win, Shift) e atalhos rápidos.
+## Recursos de Produção (v1.1):
+- **Decodificação Real H.264 por Hardware**: MediaCodec com `KEY_LOW_LATENCY` e renderização direta via `SurfaceView`.
+- **Autenticação Segura por PIN**: Validação de PIN de 6 dígitos no Handshake WebSocket antes de liberar a transmissão.
+- **Mini Teclado Flutuante Contextual**: Teclado virtual arrastável e minimizável com suporte integral a acentos portugueses (á, é, í, ó, ú, â, ê, ô, ã, õ, ç), teclas modificadoras (Ctrl, Alt, Win, Shift) e fechamento automático ao tocar fora ou concluir busca.
 - **Ativação Inteligente de Teclado**: Integração com Windows UI Automation para abrir automaticamente o teclado quando um campo de texto no Windows ganha foco.
-- **Suporte a Bluetooth Complementar**: Suporte a Bluetooth Classic RFCOMM SPP para transporte resiliente de comandos de teclado e toque.
-- **Descoberta UDP Automática**: Descoberta sem fio instantânea pela porta 45824.
+- **Descoberta UDP Automática**: Descoberta sem fio instantânea na rede local (Wi-Fi e USB RNDIS) pela porta 45824, com opção de conexão manual por IP.
 
-## Compilação no Android Studio:
-1. Abra a pasta raiz no Android Studio (Ladybug 2024.2+ ou Koala).
-2. Sincronize o Gradle (Sync Project with Gradle Files).
-3. Execute no dispositivo físico ou gere o APK via terminal: `./gradlew assembleDebug` ou `gradlew.bat assembleDebug`
+## Compilação Local do APK:
+1. Requisitos: JDK 17 e Android SDK (API 35, Build-Tools 35.0.0).
+2. No terminal (Linux/macOS):
+   ```bash
+   cd android
+   chmod +x gradlew
+   ./gradlew assembleDebug
+   ```
+3. No terminal (Windows PowerShell / CMD):
+   ```cmd
+   cd android
+   gradlew.bat assembleDebug
+   ```
+4. O APK gerado estará em:
+   `android/app/build/outputs/apk/debug/app-debug.apk` (renomeado para `TouchScreenLink-Android-Teste.apk`).

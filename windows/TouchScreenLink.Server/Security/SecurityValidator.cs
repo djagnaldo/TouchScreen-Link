@@ -3,7 +3,7 @@ using System;
 namespace TouchScreenLink.Server.Security;
 
 /// <summary>
-/// Garante que todos os dados recebidos de redes Wi-Fi, USB ou Bluetooth
+/// Garante que todos os dados recebidos de redes Wi-Fi ou USB
 /// sigam rigorosamente a especificação do protocolo binário, rejeitando pacotes
 /// malformados, fora dos limites de resolução ou com timestamps inválidos.
 /// Impede qualquer execução arbitrária de comandos ou injeção de scripts no Windows.
@@ -18,14 +18,14 @@ public static class SecurityValidator
             return false;
         }
 
-        if (buffer[0] != 0x54)
+        if (buffer[0] != 0x54) // 'T'
         {
             rejectionReason = $"Magic byte inválido no pacote de toque: {buffer[0]:X2}";
             return false;
         }
 
         byte action = buffer[1];
-        if (action > 3)
+        if (action > 4) // 0=DOWN, 1=MOVE, 2=UP, 3=CANCEL, 4=RIGHT_CLICK
         {
             rejectionReason = $"Código de ação de toque desconhecido: {action}";
             return false;
@@ -34,7 +34,7 @@ public static class SecurityValidator
         int pixelX = BitConverter.ToInt32(buffer, 16);
         int pixelY = BitConverter.ToInt32(buffer, 20);
 
-        if (pixelX < 0 || pixelX > screenWidth + 10 || pixelY < 0 || pixelY > screenHeight + 10)
+        if (pixelX < 0 || pixelX > screenWidth + 50 || pixelY < 0 || pixelY > screenHeight + 50)
         {
             rejectionReason = $"Coordenadas fora dos limites da tela: ({pixelX}, {pixelY}) vs ({screenWidth}, {screenHeight})";
             return false;
@@ -42,8 +42,8 @@ public static class SecurityValidator
 
         float normX = BitConverter.ToSingle(buffer, 8);
         float normY = BitConverter.ToSingle(buffer, 12);
-        if (float.IsNaN(normX) || float.IsInfinity(normX) || normX < -0.05f || normX > 1.05f ||
-            float.IsNaN(normY) || float.IsInfinity(normY) || normY < -0.05f || normY > 1.05f)
+        if (float.IsNaN(normX) || float.IsInfinity(normX) || normX < -0.1f || normX > 1.1f ||
+            float.IsNaN(normY) || float.IsInfinity(normY) || normY < -0.1f || normY > 1.1f)
         {
             rejectionReason = $"Coordenadas normalizadas inválidas: ({normX}, {normY})";
             return false;
@@ -61,14 +61,14 @@ public static class SecurityValidator
             return false;
         }
 
-        if (buffer[0] != 0x4B)
+        if (buffer[0] != 0x4B) // 'K'
         {
             rejectionReason = $"Magic byte inválido no pacote de teclado: {buffer[0]:X2}";
             return false;
         }
 
         byte action = buffer[1];
-        if (action > 2)
+        if (action > 2) // 0=DOWN, 1=UP, 2=UNICODE
         {
             rejectionReason = $"Ação de teclado desconhecida: {action}";
             return false;
