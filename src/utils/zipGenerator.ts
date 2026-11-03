@@ -31,6 +31,17 @@ export async function downloadWindowsProjectZip(): Promise<void> {
 }
 
 export async function downloadFullSolutionBundleZip(): Promise<void> {
+  try {
+    const response = await fetch('/TouchScreenLink-Completo-Android-Windows-v1.1.zip');
+    if (response.ok) {
+      const blob = await response.blob();
+      triggerDownload(blob, 'TouchScreenLink-Completo-Android-Windows-v1.1.zip');
+      return;
+    }
+  } catch (e) {
+    console.warn('Fallback para geração dinâmica de zip no navegador:', e);
+  }
+
   const zip = new JSZip();
   const androidFolder = zip.folder('android');
   const windowsFolder = zip.folder('windows');

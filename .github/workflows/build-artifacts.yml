@@ -27,14 +27,20 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
+          cache: 'gradle'
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Garantir Gradle Wrapper Jar
+        run: |
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Baixando gradle-wrapper.jar..."
+            mkdir -p android/gradle/wrapper
+            curl -fSL "https://raw.githubusercontent.com/gradle/gradle/v8.9.0/gradle/wrapper/gradle-wrapper.jar" -o android/gradle/wrapper/gradle-wrapper.jar
+          fi
 
       - name: Dar permissão de execução ao Gradle Wrapper
         run: chmod +x android/gradlew
 
-      - name: Compilar APK de Depuração (Auto-assinado para testes)
+      - name: Compilar APK de Depuração (Auto-assinado para testes reais)
         run: |
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace
@@ -68,35 +74,26 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restaurar Dependências NuGet
+        shell: pwsh
         run: |
           dotnet restore windows/TouchScreenLink.Server/TouchScreenLink.Server.csproj
 
       - name: Publicar Executável Self-Contained x64
+        shell: pwsh
         run: |
-          dotnet publish windows/TouchScreenLink.Server/TouchScreenLink.Server.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
-            -p:PublishSingleFile=true `
-            -p:IncludeNativeLibrariesForSelfExtract=true `
-            -p:EnableCompressionInSingleFile=true `
-            -o publish_win
+          dotnet publish windows/TouchScreenLink.Server/TouchScreenLink.Server.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o windows/TouchScreenLink.Server/publish
 
-      - name: Organizar e Renomear Artefato EXE
+      - name: Organizar e Renomear Artefato EXE Direto
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist/windows
-          Copy-Item publish_win/TouchScreenLinkServer.exe dist/windows/TouchScreenLink-Windows-Teste.exe
+          Copy-Item windows/TouchScreenLink.Server/publish/TouchScreenLinkServer.exe dist/windows/TouchScreenLink-Windows-Teste.exe
 
-      - name: Compilar Instalador Inno Setup
+      - name: Compilar Instalador Inno Setup Opcional
         shell: pwsh
         run: |
           choco install innosetup -y
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
-            /DAppVersion="1.1.0" `
-            /O"dist/windows" `
-            /F"TouchScreenLink-Windows-Instalador" `
-            windows/TouchScreenLink.Server/Installer/TouchScreenLinkSetup.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DAppVersion="1.1.0" /O"dist\windows" /F"TouchScreenLink-Windows-Instalador" windows\TouchScreenLink.Server\Installer\TouchScreenLinkSetup.iss
         continue-on-error: true
 
       - name: Publicar Artefatos do Windows no GitHub Actions
@@ -128,10 +125,11 @@ jobs:
           name: TouchScreenLink-Windows-Teste-EXE
           path: release_assets/
 
-      - name: Criar Release no GitHub
+      - name: Publicar Release no GitHub
         uses: softprops/action-gh-release@v2
+        continue-on-error: true
         with:
-          tag_name: ${{ github.ref_name || 'v1.1.0-teste' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.1.0-teste' }}
           name: "TouchScreen Link v1.1.0 — Versão de Testes"
           body: |
             ## TouchScreen Link — Versão Oficial de Testes Reais (v1.1.0)
@@ -145,3 +143,4 @@ jobs:
           files: release_assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

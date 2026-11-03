@@ -32,6 +32,65 @@ export const DeploymentGuide: React.FC = () => {
         </p>
       </div>
 
+      {/* Cloud CI/CD via GitHub Actions (Zero Terminal) */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950/40 to-slate-900 border border-indigo-500/30 rounded-xl p-6 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-[11px] font-bold tracking-wider uppercase text-cyan-400 bg-cyan-950/60 border border-cyan-800 px-2 py-0.5 rounded-full inline-block mb-2">
+              Automação Oficial CI/CD
+            </span>
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" />
+              Compilação Automática na Nuvem (GitHub Actions)
+            </h3>
+            <p className="text-xs text-slate-300 mt-1">
+              Gere os instaladores reais (APK para Android e EXE para Windows x64) diretamente pelos servidores do GitHub sem precisar instalar JDK, Android SDK ou .NET no seu computador.
+            </p>
+          </div>
+          <button
+            onClick={downloadFullSolutionBundleZip}
+            className="flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-medium text-xs rounded-lg transition-all shadow-md shrink-0"
+          >
+            <Download className="w-4 h-4" />
+            Baixar Projeto Completo (.ZIP)
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="bg-slate-950/80 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+            <span className="font-bold text-indigo-400 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[11px]">1</span>
+              Acesse a Aba Actions
+            </span>
+            <p className="text-slate-400 leading-relaxed text-[11px]">
+              No GitHub (<code>github.com/djagnaldo/TouchScreen-Link</code>), clique na aba superior <b>Actions</b>.
+            </p>
+          </div>
+
+          <div className="bg-slate-950/80 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+            <span className="font-bold text-indigo-400 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-[11px]">2</span>
+              Clique em "Run workflow"
+            </span>
+            <p className="text-slate-400 leading-relaxed text-[11px]">
+              No menu lateral esquerdo, selecione <b>Build TouchScreen Link (Android APK & Windows EXE)</b>, clique no botão azul <b>Run workflow</b> e confirme.
+            </p>
+          </div>
+
+          <div className="bg-slate-950/80 p-3.5 rounded-lg border border-slate-800 space-y-1.5">
+            <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-[11px]">3</span>
+              Baixe os Artefatos Prontos
+            </span>
+            <p className="text-slate-400 leading-relaxed text-[11px]">
+              Ao finalizar a execução (cerca de 2 a 3 minutos), clique na execução concluída. Na seção <b>Artifacts</b>, baixe:
+              <br/>• <code>TouchScreenLink-Android-Teste-APK</code>
+              <br/>• <code>TouchScreenLink-Windows-Teste-EXE</code>
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Everyday User Installation (No Terminal Required) */}
       <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-md space-y-4">
         <h3 className="text-base font-bold text-white flex items-center gap-2">
