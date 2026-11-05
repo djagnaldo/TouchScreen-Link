@@ -28,21 +28,12 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Configurar Cache e Otimização do Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Aceitar Licenças e Instalar Componentes do Android SDK
+      - name: Aceitar Licenças do Android SDK
         run: |
           yes | sdkmanager --licenses || true
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
-
-      - name: Garantir Gradle Wrapper Jar
-        run: |
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Baixando gradle-wrapper.jar..."
-            mkdir -p android/gradle/wrapper
-            curl -fSL "https://raw.githubusercontent.com/gradle/gradle/v8.9.0/gradle/wrapper/gradle-wrapper.jar" -o android/gradle/wrapper/gradle-wrapper.jar
-          fi
 
       - name: Dar permissão de execução ao Gradle Wrapper
         run: chmod +x android/gradlew

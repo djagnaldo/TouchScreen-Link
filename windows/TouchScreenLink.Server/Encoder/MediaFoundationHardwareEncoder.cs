@@ -146,29 +146,39 @@ public sealed class MediaFoundationHardwareEncoder : IDisposable
         InitializeEncoder();
     }
 
+    // CLSIDs conhecidos de Encoders H.264 por Hardware e Software no Windows Media Foundation
+    private static readonly (Guid Clsid, string Name, bool IsHardware)[] AvailableEncoders = new[]
+    {
+        (new Guid("60f44560-5a20-4857-bfe4-f2978438058d"), "NVIDIA NVENC H.264 MFT (GPU Dedicada)", true),
+        (new Guid("4be8d3c0-5d52-4166-a671-6b940422d932"), "Intel QuickSync H.264 MFT (Acelerado por GPU)", true),
+        (new Guid("3372c082-f54f-4e4c-8646-0b1a1387d817"), "AMD AMF H.264 MFT (Acelerado por GPU)", true),
+        (new Guid("35d94723-5e91-447a-9770-b747be88e994"), "Qualcomm Snapdragon H.264 MFT (Hardware)", true),
+        (new Guid("6ca50344-051a-4ded-9779-a43305165e35"), "Microsoft H.264 Video Encoder MFT (Nativo)", false)
+    };
+
     public static string DetectHardwareEncoder()
     {
         try
         {
             MediaManager.Startup();
-            var encoders = MediaFactory.FindTransform(
-                TransformCategoryGuids.VideoEncoder,
-                TransformEnumFlags.HardwareOnly | TransformEnumFlags.SortAndFilter,
-                null,
-                null
-            );
-
-            if (encoders != null && encoders.Length > 0)
+            foreach (var candidate in AvailableEncoders)
             {
-                string? name = encoders[0].Get(TransformAttributeKeys.MftFriendlyNameAttribute);
-                MediaManager.Shutdown();
-                return name ?? "GPU Acelerada (NVIDIA NVENC / Intel QuickSync / AMD AMF)";
+                try
+                {
+                    using var testTransform = new Transform(candidate.Clsid);
+                    if (testTransform != null)
+                    {
+                        MediaManager.Shutdown();
+                        return candidate.Name;
+                    }
+                }
+                catch {}
             }
             MediaManager.Shutdown();
         }
         catch {}
 
-        return "Microsoft H.264 Encoder MFT (Software Fallback)";
+        return "Microsoft H.264 Encoder MFT (Nativo)";
     }
 
     public void ApplyProfile(TransmissionProfile profile)
@@ -205,74 +215,45 @@ public sealed class MediaFoundationHardwareEncoder : IDisposable
         {
             MediaManager.Startup();
 
-            // 1. Tenta localizar encoder de hardware H.264
-            Activate[]? hardwareTransforms = null;
-            try
-            {
-                hardwareTransforms = MediaFactory.FindTransform(
-                    TransformCategoryGuids.VideoEncoder,
-                    TransformEnumFlags.HardwareOnly | TransformEnumFlags.SortAndFilter,
-                    null,
-                    null
-                );
-            }
-            catch {}
-
-            if (hardwareTransforms != null && hardwareTransforms.Length > 0)
+            foreach (var candidate in AvailableEncoders)
             {
                 try
                 {
-                    _mft = hardwareTransforms[0].ActivateObject<Transform>();
-                    _isHardwareAccelerated = true;
-                    _encoderName = hardwareTransforms[0].Get(TransformAttributeKeys.MftFriendlyNameAttribute) ?? "Hardware GPU H.264 MFT";
-                    Debug.WriteLine($"Encoder H.264 por Hardware selecionado: {_encoderName}");
+                    _mft = new Transform(candidate.Clsid);
+                    _isHardwareAccelerated = candidate.IsHardware;
+                    _encoderName = candidate.Name;
+                    Debug.WriteLine($"Encoder H.264 inicializado com sucesso: {_encoderName} (Hardware: {_isHardwareAccelerated})");
+                    break;
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"Falha ao ativar transform por hardware: {ex.Message}");
+                    Debug.WriteLine($"Encoder {candidate.Name} indisponível: {ex.Message}");
                     _mft = null;
                 }
             }
 
-            // 2. Se hardware não estiver disponível ou falhar, ativa fallback por software
-            if (_mft == null)
+            if (_mft != null)
             {
-                try
-                {
-                    var softwareTransforms = MediaFactory.FindTransform(
-                        TransformCategoryGuids.VideoEncoder,
-                        TransformEnumFlags.All,
-                        null,
-                        null
-                    );
+                ConfigureCodecProperties();
+                ConfigureMediaTypes();
 
-                    if (softwareTransforms != null && softwareTransforms.Length > 0)
-                    {
-                        foreach (var activate in softwareTransforms)
-                        {
-                            try
-                            {
-                                _mft = activate.ActivateObject<Transform>();
-                                _isHardwareAccelerated = false;
-                                _encoderName = activate.Get(TransformAttributeKeys.MftFriendlyNameAttribute) ?? "Microsoft H.264 Encoder MFT (Software)";
-                                break;
-                            }
-                            catch {}
-                        }
-                    }
+                int nv12Size = (_currentSettings.Width * _currentSettings.Height * 3) / 2;
+                _nv12Buffer = new byte[nv12Size];
 
-                    if (_mft == null)
-                    {
-                        _mft = new Transform(CLSID_CMSH264EncoderMFT);
-                        _isHardwareAccelerated = false;
-                        _encoderName = "Microsoft H.264 Encoder MFT (Software Fallback)";
-                    }
-                    Debug.WriteLine($"Fallback para encoder H.264 por software ativado: {_encoderName}");
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Falha ao instanciar fallback de software: {ex.Message}");
-                }
+                _isInitialized = true;
+                _fpsStopwatch.Restart();
+                Debug.WriteLine($"Media Foundation H.264 Encoder configurado: {_currentSettings.Width}x{_currentSettings.Height} @ {_currentSettings.TargetFps}fps ({_currentSettings.BitrateKbps} kbps)");
+            }
+            else
+            {
+                _isInitialized = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _isInitialized = false;
+            Debug.WriteLine($"Erro fatal na inicialização do Media Foundation Encoder: {ex.Message}");
+        }
             }
 
             if (_mft != null)

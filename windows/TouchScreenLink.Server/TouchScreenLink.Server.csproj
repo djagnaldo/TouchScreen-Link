@@ -28,8 +28,7 @@
     <PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
     <PackageReference Include="SharpDX.MediaFoundation" Version="4.2.0" />
 
-    <!-- Bluetooth Classic RFCOMM / 32feet.NET -->
-    <PackageReference Include="InTheHand.Net.Bluetooth" Version="4.1.44" />
+
 
     <!-- Geração de QR Code nativo e serialização JSON -->
     <PackageReference Include="QRCoder" Version="1.6.0" />
