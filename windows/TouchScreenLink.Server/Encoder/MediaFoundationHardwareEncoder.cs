@@ -103,6 +103,32 @@ public sealed class MediaFoundationHardwareEncoder : IDisposable
 {
     private static readonly Guid CLSID_CMSH264EncoderMFT = new("6ca50344-051a-4ded-9779-a43305165e35");
 
+    // Interop Win32 para instanciação nativa COM de MFT via CLSID
+    [DllImport("ole32.dll", ExactSpelling = true)]
+    private static extern int CoCreateInstance(
+        [In, MarshalAs(UnmanagedType.LPStruct)] Guid rclsid,
+        IntPtr pUnkOuter,
+        uint dwClsContext,
+        [In, MarshalAs(UnmanagedType.LPStruct)] Guid riid,
+        out IntPtr ppv);
+
+    private static readonly Guid IID_IMFTransform = new("bf94c121-5b05-4e6f-8000-ba5980361427");
+    private const uint CLSCTX_INPROC_SERVER = 1;
+
+    private static Transform? CreateTransformFromClsid(Guid clsid)
+    {
+        try
+        {
+            int hr = CoCreateInstance(clsid, IntPtr.Zero, CLSCTX_INPROC_SERVER, IID_IMFTransform, out IntPtr pTransform);
+            if (hr == 0 && pTransform != IntPtr.Zero)
+            {
+                return new Transform(pTransform);
+            }
+        }
+        catch {}
+        return null;
+    }
+
     // GUIDs da ICodecAPI para controle do encoder H.264
     private static readonly Guid CODECAPI_AVEncCommonRateControlMode = new("1c0608e9-370c-4710-8a58-cb6181c42423");
     private static readonly Guid CODECAPI_AVEncCommonMeanBitRate = new("f7222374-2144-4815-b550-a37f8e12d5d7");
@@ -165,7 +191,7 @@ public sealed class MediaFoundationHardwareEncoder : IDisposable
             {
                 try
                 {
-                    using var testTransform = new Transform(candidate.Clsid);
+                    using var testTransform = CreateTransformFromClsid(candidate.Clsid);
                     if (testTransform != null)
                     {
                         MediaManager.Shutdown();
@@ -219,41 +245,20 @@ public sealed class MediaFoundationHardwareEncoder : IDisposable
             {
                 try
                 {
-                    _mft = new Transform(candidate.Clsid);
-                    _isHardwareAccelerated = candidate.IsHardware;
-                    _encoderName = candidate.Name;
-                    Debug.WriteLine($"Encoder H.264 inicializado com sucesso: {_encoderName} (Hardware: {_isHardwareAccelerated})");
-                    break;
+                    _mft = CreateTransformFromClsid(candidate.Clsid);
+                    if (_mft != null)
+                    {
+                        _isHardwareAccelerated = candidate.IsHardware;
+                        _encoderName = candidate.Name;
+                        Debug.WriteLine($"Encoder H.264 inicializado com sucesso: {_encoderName} (Hardware: {_isHardwareAccelerated})");
+                        break;
+                    }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"Encoder {candidate.Name} indisponível: {ex.Message}");
                     _mft = null;
                 }
-            }
-
-            if (_mft != null)
-            {
-                ConfigureCodecProperties();
-                ConfigureMediaTypes();
-
-                int nv12Size = (_currentSettings.Width * _currentSettings.Height * 3) / 2;
-                _nv12Buffer = new byte[nv12Size];
-
-                _isInitialized = true;
-                _fpsStopwatch.Restart();
-                Debug.WriteLine($"Media Foundation H.264 Encoder configurado: {_currentSettings.Width}x{_currentSettings.Height} @ {_currentSettings.TargetFps}fps ({_currentSettings.BitrateKbps} kbps)");
-            }
-            else
-            {
-                _isInitialized = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            _isInitialized = false;
-            Debug.WriteLine($"Erro fatal na inicialização do Media Foundation Encoder: {ex.Message}");
-        }
             }
 
             if (_mft != null)
